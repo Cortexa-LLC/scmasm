@@ -1,0 +1,413 @@
+
+1000 *SAVE X.FIND.AND.REP
+1010 *--------------------------------
+1020 *      FIND AND LIST COMMANDS
+1030 *--------------------------------
+1040 LIST
+1050 FIND   JSR GET.KEY.STRING
+1060        JSR PARSE.LINE.RANGE
+1070        JSR HANDLE.REPLACE.OPTIONS
+1080 .1     JSR GET.LINE.TO.WBUF
+1090        BCC .2
+1100        RTS
+1110 .2     JSR FIND.KEY.IN.WBUF
+1120        BCC .1       KEY NOT IN WBUF
+1130        LDA A1L      SET UP POINTER FOR LIST
+1140        LDX A1H
+1150        JSR LIST.LINE.AX
+1160        JMP .1
+1170 *--------------------------------
+1180 *      PARSE  INTO FREE MEMORY
+1190 *--------------------------------
+1200 GET.KEY.STRING
+1210        LDA #KBUF
+1220        STA KEY.ADDR
+1230        LDA /KBUF
+1240        STA KEY.ADDR+1
+1250 GET.KEY2
+1260        JSR GNNB     GET NEXT NON-BLANK
+1270        STA DLIM     FOR DELIMITER
+1280        BCS .4       EOL
+1290        CMP #',
+1300        BEQ .4       COMMA
+1310        CMP #'.      PERIOD
+1320        BEQ .4
+1330        EOR #$30
+1340        CMP #10
+1350        BCC .4       DIGIT
+1360        LDY #0
+1370 .1     STY PNTR
+1380        JSR GNC      MOVE STRING
+1390        BCS .2       END OF LINE
+1400        CMP DLIM
+1410        BEQ .2       END OF STRING
+1420        LDY PNTR
+1430        STA (KEY.ADDR),Y
+1440        INY
+1450        CPY #39      SEE IF STRING FITS
+1460        BCC .1       YES, KEEP GOING
+1470        LDY #QSTRLNG NO, STRING TOO LONG
+1480        JMP HARD.ERROR
+1490 .2     LDY PNTR
+1500        LDA #0
+1510        STA (KEY.ADDR),Y
+1520        SEC          WE FOUND IT
+1530        RTS
+1540 .4     LDA #0
+1550        STA PNTR
+1560        CLC          DIDN'T FIND IT
+1570        JMP BACKUP.CHAR.PNTR
+1580        .PG
+1590 *--------------------------------
+1600 *      GET NEXT LINE INTO WBUF
+1610 *      RETURN CARRY CLEAR IF SUCCESSFUL
+1620 *             CARRY SET IF BEYOND 
+1630 *             X = LENGTH OF LINE
+1640 *--------------------------------
+1650 GET.LINE.TO.WBUF
+1660        LDA SRCP
+1670        STA A1L      SAVE POINTER FOR LIST
+1680        LDA SRCP+1
+1690        STA A1H
+1700        JSR CMP.SRCP.ENDP   END OF RANGE YET?
+1710        BCS .2              ...YES, FINISHED
+1720        JSR GET.LINE.NUMBER
+1730        LDY #0       START AT BEGINNING OF WBUF
+1740        JSR CONVERT.LINE.NUMBER.STORE  PUT CONVERTED # AT WBUF,Y
+1750        LDA #$A0     APPEND A SPACE AFTER LINE NUMBER
+1760        STA WBUF,Y
+1770        INY
+1780        TYA
+1790        TAX
+1800 .1     JSR NTKN     BYTE FROM PROGRAM
+1810        STA WBUF,X
+1820        INX
+1830        TAY          TEST CHAR
+1840        BNE .1       END OF LINE
+1850        CLC          FLAG SUCCESSFUL
+1860 .2     RTS
+1870 *--------------------------------
+1880 *      LIST LINE POINTED TO BY 
+1890 *--------------------------------
+1900 LIST.LINE.AX
+1910        STA SRCP
+1920        STX SRCP+1
+1930 *--------------------------------
+1940 LIST.CURRENT.LINE
+1950        JSR CRLF      PRINT CARRIAGE RETURN
+1960        JSR SPC      SPACE
+1970        LDA PROMPT.FLAG
+1980        BEQ .1       ...NO SPACE SINCE NOT "H"
+1990        JSR SPC
+2000 .1     JSR GET.LINE.NUMBER   BODY
+2010        JSR CONVERT.LINE.NUMBER.PRINT
+2020        LDA #$20     SPACE
+2030 .2     JSR CHO      PRINT CHAR
+2040        JSR GET.NEXT.SOURCE.CHAR
+2050        BNE .2       NOT END YET
+2060        RTS          FINISHED
+2070        .PG
+2080 *--------------------------------
+2090 *      FIND KEY IN WBUF
+2100 *      RETURN WITH CARRY CLEAR IF NO MATCH.
+2110 *      RETURN WITH CARRY SET IF MATCH, AND WITH
+2120 *          (PNTR) = INDEX OF START OF MATCH
+2130 *          (X) = INDEX OF LAST CHAR MATCHED + 1
+2140 *--------------------------------
+2150 FIND.KEY.IN.WBUF
+2160        JSR FIND.START.OF.LINE.IN.WBUF
+2170        LDA PNTR
+2180        BNE .1       NON-NULL KEY STRING
+2190        LDA DLIM     If delimiter is slash, list
+2200        CMP #'/'          only major labels
+2210        BEQ .3       ...it is
+2220        SEC          ...no string, so SIGNAL MATCH
+2230        RTS
+2240 .3     LDA WBUF,X   GET FIRST CHAR
+2250        JSR ELIMINATE.CASE
+2260        JMP CHECK.LETTER
+2270 .1     LDY #39      MAP SEARCH KEY INTO UPPER CASE
+2280 .2     LDA (KEY.ADDR),Y   ...IF LC.FLAG IS ON
+2290        JSR ELIMINATE.CASE.MAYBE
+2300        STA (KEY.ADDR),Y
+2310        DEY
+2320        BPL .2 
+2330 FIND.KEY.IN.WBUF2
+2340        LDY #0       START AT FIRST CHAR OF KEY
+2350 .1     STY KEY.PNTR      CURRENT STARTING POINT IN KEY
+2360 .2     STX BUF.PNTR      CURRENT STARTING POINT IN BUFFER
+2370 .3     LDA (KEY.ADDR),Y  NEXT CHAR FROM KEY
+2380        BEQ .6       END OF KEY, IT MATCHES
+2390        CMP WILD.CARD  NORMALLY CONTROL-W
+2400        BEQ .8       YES
+2410        LDA WBUF,X   NEXT CHAR FROM BUFFER
+2420        BEQ .5       END OF BUFFER, DID NOT MATCH
+2430        JSR ELIMINATE.CASE.MAYBE    MAP INTO UPPER CASE IS NEEDED
+2440        CMP (KEY.ADDR),Y  COMPARE WITH KEY CHAR
+2450        BNE .4       NO MATCH
+2460        INY          ADVANCE KEY POINTER
+2470        INX          ADVANCE BUFFER POINTER
+2480        BNE .3       ...ALWAYS
+2490 *--------------------------------
+2500 .4     LDY KEY.PNTR      TRY AGAIN FURTHER INTO BUFFER
+2510        LDX BUF.PNTR
+2520        INX
+2530        BNE .2       ...ALWAYS
+2540 *--------------------------------
+2550 .5     LDA $C000
+2560        CMP #$8D          ALLOW 'ABORT' WITH 
+2570        BEQ .11
+2580        CLC          SIGNAL NO MATCH
+2590        RTS
+2600 *--------------------------------
+2610 .6     LDA KEY.PNTR      SEE IF IN FIRST SEGMENT OF KEY
+2620        BNE .7            NO
+2630        LDA BUF.PNTR      YES
+2640        STA PNTR
+2650 .7     SEC          SIGNAL MATCH
+2660        RTS
+2670 *--------------------------------
+2680 .8     LDA KEY.PNTR      SEE IF IN FIRST SEGMENT OF KEY
+2690        BNE .9            NO
+2700        LDA BUF.PNTR      YES
+2710        STA PNTR
+2720 .9     INY          ADVANCE KEY POINTER
+2730        LDA (KEY.ADDR),Y  PEEK AT NEXT CHAR OF KEY
+2740        BNE .1       NOT AT END YET
+2750 .10    LDA WBUF,X   AT END, SO SCAN TO END OF BUFFER
+2760        BEQ .6       FOUND END, AND ALL MATCHES
+2770        INX          ADVANCE BUFFER POINTER
+2780        BNE .10      ...ALWAYS
+2790 *--------------------------------
+2800 .11    JMP SOFT     HE ABORTED
+2810 *--------------------------------
+2820 * REPLACE COMMAND
+2830 *--------------------------------
+2840 REPLACE
+2850        JSR GET.KEY.STRING
+2860        BCS .91      SKIP IF NO ERROR
+2865        JMP R.ERR1   (SYN ERROR)
+2866 .91
+2870        LDA PNTR     NULL SEARCH FAILS
+2880        BNE .92      SKIP IF NOT ZERO
+2885        JMP R.ERR1
+2886 .92
+2890        JSR BACKUP.CHAR.PNTR  USE DELIMITER OVER AGAIN
+2900        LDA #KBUF+40
+2910        STA KEY.ADDR
+2920        LDA /KBUF+40
+2930        STA KEY.ADDR+1 SET UP CALL
+2940        JSR GET.KEY2
+2950        BCS .93      SKIP IF NO ERROR
+2955        JMP R.ERR1   (SYN ERROR)
+2956 .93
+2960        STY REPLACE.LENGTH
+2970        JSR PARSE.LINE.RANGE
+2980        JSR HANDLE.REPLACE.OPTIONS
+2990        LDA #KBUF    FOR SEARCH
+3000        STA KEY.ADDR
+3010        LDA /KBUF
+3020        STA KEY.ADDR+1
+3030        LDA #1
+3040        STA PNTR     PNTR MUST BE > 0 FOR SEARCH
+3050 .1     JSR GET.LINE.TO.WBUF
+3060        BCS .5       FINISHED
+3070        STX WBUF.LENGTH
+3080        JSR FIND.KEY.IN.WBUF
+3090        BCC .1 
+3100        LDA #0
+3110        STA CHANGE.CNT (DEF IS EQ)
+3120 .2     TXA          COMPUTE # CHARS IN TARGET FIELD
+3130        SEC
+3140        SBC PNTR
+3150        STA SOURCE.LENGTH
+3160        STX MATCH.END
+3170        JSR REPLACE.REPLACE
+3180        BCS .5       NEITHER "Y" NOR "N"
+3190        BNE .3       THEY HIT 'N'
+3200        INC CHANGE.CNT
+3210        LDX MATCH.END
+3220        BNE .4       ...ALWAYS
+3230 .3     LDX PNTR     MATCH BEGINNING
+3240        INX                +1
+3250 .4     JSR FIND.KEY.IN.WBUF2
+3260        BCS .2       LOOP IF ANOTHER
+3270        LDA CHANGE.CNT  ANY CHANGES?
+3280        BEQ .1       NO - TRY NEXT LINE
+3290        JSR NML      PUT LINE BACK
+3300        LDA WBUF     If replacement line was null,
+3310        BEQ .6            then just lshow line number
+3320        LDA LINE.END   AND LIST
+3330        LDX LINE.END+1
+3340        JSR LIST.LINE.AX
+3350        JMP .1       TRY NEXT LINE
+3360 .5     RTS          FINISHED
+3370 .6     LDA WBUF+1
+3380        STA CURRENT.LINE.NUMBER
+3390        LDA WBUF+2
+3400        STA CURRENT.LINE.NUMBER+1
+3410        JSR CRLF
+3420        JSR CONVERT.LINE.NUMBER.PRINT
+3430        JMP .1
+3440 *--------------------------------
+3450 R.ERR1 JMP SYNX     MISSING STRING
+3460 R.ERR2 LDY #QREPLNG REP STRNG TOO LONG
+3470        JMP HARD.ERROR
+3480        .PG
+3490 *--------------------------------
+3500 * A MATCH IS FOUND, MAYBE REPLACE
+3510 *      RETURNS: CARRY  ZERO
+3520 *          Q     CS     NE   QUIT
+3530 *          N     CC     NE   NO CHG
+3540 *          Y     CC     EQ   CHANGE MADE
+3550 *--------------------------------
+3560 REPLACE.REPLACE
+3570        LDA AUTO.FLAG
+3580        BMI .40      - = AUTO MODE, + = VERIFY MODE
+3590        JSR PRINT.AND.PROMPT
+3600        BNE .99      Q,N EXITS
+3610 .40    SEC
+3620        LDA REPLACE.LENGTH
+3630        SBC SOURCE.LENGTH
+3640        BCC .60      (IF SHORTER)
+3650        BEQ .50      (IF EQUAL  )
+3660 *--------------------------------
+3670 * REPLACE IS LONGER - MAKE SPACE
+3680 *      ACC IS REP.LEN-SRC.LEN
+3690 *--------------------------------
+3700        CLC
+3710        ADC WBUF.LENGTH
+3720        BCS .45      OVER 256 LEN
+3730        CMP #WBUF.MAX
+3740        BCC .51
+3750 .45    JMP R.ERR2   TOO LONG ERR
+3760 .51    TAX
+3770        LDY WBUF.LENGTH
+3780        STX WBUF.LENGTH (RESET IT)
+3790 .52    LDA WBUF,Y
+3800        STA WBUF,X
+3810        DEX
+3820        DEY
+3830        CPY MATCH.END
+3840        BCS .52
+3850        INX
+3860        STX MATCH.END
+3870 *--------------------------------
+3880 *      MOVE STRING INTO GAP
+3890 *--------------------------------
+3900 .50    LDX PNTR     MOVE REPLACEMENT STRING INTO GAP
+3910        LDY #0       POINT AT REPLACEMENT STRING
+3920 .55    LDA KBUF+40,Y  NEXT CHAR FROM REP. STRING
+3930        BEQ .57      END OF REP. STRING
+3940        STA WBUF,X   STORE IN GAP
+3950        INX
+3960        INY
+3970        BNE .55      ...ALWAYS
+3980 .57    CLC          SIGNAL SUCCESS
+3990        LDA #0        (CC,EQ)
+4000 .99    RTS
+4010 *--------------------------------
+4020 * REPLACE IS SHORTER - REMOVE EXTRA
+4030 *--------------------------------
+4040 .60    LDA PNTR
+4050        ADC REPLACE.LENGTH
+4060        TAX
+4070        LDY MATCH.END
+4080        STX MATCH.END     (RESET IT)
+4090 .1     LDA WBUF,Y
+4100        STA WBUF,X
+4110        INY
+4120        INX
+4130        CPX WBUF.LENGTH
+4140        BCC .1
+4150        STX WBUF.LENGTH   (RESET THIS TOO)
+4160        BCS .50      ...ALWAYS
+4170        .PG
+4180 *--------------------------------
+4190 * PRINT LINE AND GET Y,N,Q
+4200 *      RETURNS:   CARRY ZERO
+4210 *          Q        CS   NE
+4220 *          N        CC   NE
+4230 *          Y        CS   EQ
+4240 *--------------------------------
+4250 PRINT.AND.PROMPT
+4260        JSR P.RETURN      PRINT 
+4270        LDX #0
+4280 .1     LDA WBUF,X
+4290        BEQ .4       EOL?
+4300        ORA #$80
+4310        CMP #$A0     SKIP CONTROL
+4320        BCC .3 
+4330        CPX PNTR
+4340        BCC .2 
+4350        CPX MATCH.END
+4360        BCS .2 
+4370        JSR ELIMINATE.CASE
+4380        AND #$3F     ...DISPLAY IN INVERSE
+4390 .2     JSR IO.COUT
+4400 .3     INX
+4410        BNE .1       NEXT CHAR
+4420 .4     JSR MON.CLREOL
+4430        LDY #QREPPRMT     PRINT "REPLACE?  "
+4440 YES.OR.NO
+4450        JSR QT.OUT
+4460        JSR READ.KEY.WITH.CASE
+4470        CMP #$A0     CONTROL CHAR?
+4480        BCC .2       ...YES, DO NOT ECHO
+4490        JSR MY.COUT
+4500        AND #$DF     NOW IGNORE CASE
+4510 .2     CMP #'N+$80  NO:  RETURN CC, NE
+4520        BEQ .1       ..."N"
+4530        CMP #'Y+$80  YES: RETURN CS, EQ
+4540        SEC          NEITHER:  CS, NE
+4550        RTS
+4560 .1     LSR          WAS = N = $CE, SO CLEAR CARRY, SET NE
+4570        RTS
+4580 *--------------------------------
+4590 * SET FLAGS FROM CHAR IN ACC
+4600 *      CHAR  FLAG      MEANING
+4610 *      "A"  AUTO.FLAG  +=VERIFY, -=AUTO
+4620 *      "U"  LC.FLAG    +=AS TYPED, -=ACCEPT EITHER CASE
+4630 *
+4640 *     RETURN  CS -> VALID OPTION
+4650 *             CC -> NOT AN OPTION
+4660 *--------------------------------
+4670 HANDLE.REPLACE.OPTIONS
+4680        LSR AUTO.FLAG +=VERIFY MODE
+4690        LSR LC.FLAG   +=CASE AS TYPED
+4700 .1     JSR GNNB     GET NEXT BYTE FROM INPUT LINE
+4710        BCS .3       END OF LINE
+4720        JSR ELIMINATE.CASE    MAP LOWER TO UPPER
+4730        CMP #'A      AUTO MODE?
+4740        BNE .2       NO
+4750        ROR AUTO.FLAG YES, SET SIGN BIT FROM CARRY
+4760 .2     CMP #'U      ACCEPT BOTH CASES?
+4770        BNE .1       NO
+4780        ROR LC.FLAG  YES, SET SIGN BIT FROM CARRY
+4790        BNE .1       ...ALWAYS
+4800 .3     RTS
+4810 *--------------------------------
+4820 *      MAP LOWER CASE INTO UPPER CASE
+4830 *--------------------------------
+4840 ELIMINATE.CASE.MAYBE
+4850        BIT LC.FLAG
+4860        BPL LCUC3    DON'T DO IT
+4870 ELIMINATE.CASE
+4880        PHA          SAVE ORIGINAL CHAR
+4890        ORA #$80     MAKE CANONICAL FORM
+4900        CMP #$E0     IN LOWER CASE REGION?
+4910        PLA          RESTORE ORIGINAL CHAR
+4920        BCC LCUC3    ...NOT LOWER CASE REGION
+4930        AND #$DF     ...LC, MAP TO UPPER CASE
+4940 LCUC3  RTS
+4950 *--------------------------------
+4960 *      LOAD CURRENT LINE NUMBER FROM SRCP
+4970 *--------------------------------
+4980 GET.LINE.NUMBER
+4990        JSR GNB      SKIP LENGTH
+5000        JSR GNB      GET LINE NUMBER
+5010        STA CURRENT.LINE.NUMBER
+5020        JSR GNB
+5030        STA CURRENT.LINE.NUMBER+1
+5040        RTS
+5050 *--------------------------------

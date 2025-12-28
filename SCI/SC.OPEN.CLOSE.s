@@ -1,0 +1,318 @@
+
+1000 *SAVE SC.OPEN.CLOSE
+1010 *--------------------------------
+1020 *      FOLLOWING USE "BIT" TO SKIP OVER TWO BYTES,
+1030 *      SO CANNOT HAVE THE SECOND OF THE TWO =$CX.
+1040 *--------------------------------
+1050 MLI.C0 LDA #$00     CREATE
+1060        .HS 2C
+1070 DELETE
+1080 MLI.C1 LDA #$01     DESTROY
+1090        .HS 2C
+1100 MLI.C2 LDA #$02     RENAME
+1110        .HS 2C
+1120 MLI.C3 LDA #$03     SET FILE INFO
+1130        .HS 2C
+1140 MLI.C4 LDA #$04     GET FILE INFO
+1150        .HS 2C
+1160 MLI.C5 LDA #$05     ONLINE
+1170        .HS 2C
+1180 MLI.C6 LDA #$06     SET PREFIX
+1190        .HS 2C
+1200 MLI.C7 LDA #$07     GET PREFIX
+1210        .HS 2C
+1220 MLI.C8 LDA #$08     OPEN
+1230        .HS 2C
+1240 MLI.C9 LDA #$09     NEWLINE
+1250        .HS 2C
+1260 MLI.CA LDA #$0A     READ
+1270        .HS 2C
+1280 MLI.CB LDA #$0B     WRITE
+1290        .HS 2C
+1300 MLI.CC LDA #$0C     CLOSE
+1310        .HS 2C
+1320 MLI.CD LDA #$0D     FLUSH
+1330        .HS 2C
+1340 MLI.CE LDA #$0E     SET MARK
+1350        .HS 2C
+1360 MLI.CF LDA #$0F     GET MARK
+1370        .HS 2C
+1380 MLI.D0 LDA #$D0     SET EOF
+1390        .HS 2C
+1400 MLI.D1 LDA #$D1     GET EOF
+1410        ORA #$C0     MAKE INTO MLI CALL CODE
+1420        JMP MLI.CALLER
+1430 *--------------------------------
+1440 GET.FILE.INFO
+1450        LDA #10
+1460        STA GET.SET.PARMS
+1470        BNE MLI.C4   GET FILE INFO
+1480 *--------------------------------
+1490 SET.FILE.INFO
+1500        LDA #7
+1510        STA GET.SET.PARMS
+1520        BNE MLI.C3   SET FILE INFO
+1530 *--------------------------------
+1540 BYE
+1550        JSR CLOSE.ALL.FILES
+1560        JSR CLOSE.EXEC.FILE
+1570        JSR GP.MLI
+1580        .DA #$65,READ.WRITE.PARMS
+1590 *--------------------------------
+1600 OPEN.A.FILE
+1610        PHA
+1620        LDA FBITS
+1630        AND #$04
+1640        BEQ .1
+1650        LDX VAL.T
+1660 .1     PLA
+1670  
+1680 OPEN.DIRECTORY
+1690        CPX GET.SET.PARMS+4
+1700        BNE TYPERR
+1710        AND GET.SET.PARMS+3
+1720        BEQ .3
+1730        LDA ALLOCATED.BUFFER.PAGE
+1740        STA OPEN.PARMS+4
+1750        LDA #$0F
+1760        STA LEVEL
+1770        JSR MLI.C8   OPEN
+1780        BCS .1
+1790        LDA OPEN.PARMS+5
+1800        STA READ.WRITE.PARMS+1
+1810        STA CLOSE.FLUSH.PARMS+1
+1820        STA MISC.PARMS+1
+1830 .1     RTS
+1840 *--------------------------------
+1850 .3     LDA #$0A     "FILE LOCKED"
+1860        SEC
+1870        RTS
+1880 *--------------------------------
+1890 VERIFY
+1900        LDA #$06   "PATH NOT FOUND"
+1910        RTS        ALREADY .CS. IF ERROR
+1920 *--------------------------------
+1930 TYPERR LDA #$0D
+1940        SEC
+1950        RTS
+1960 *--------------------------------
+1970 *   OPEN -- ONLY USED BY SCASM FOR OPENING
+1980 *           .TF AND "TEXT" FILES
+1990 *           THE FILES MAY BE TXT OR BIN FILE TYPE
+2000 *--------------------------------
+2010 OPEN
+2020        PHP
+2030        JSR GET.REFNUM.OF.OPEN.FILE
+2040        BCC .9       ...ALREADY OPEN, ERROR
+2050        PLP          ...GET SAVED STATUS
+2060        BCC .3       ...FILE ALREADY EXISTS
+2070 *---MAKE A NEW FILE--------------
+2080        LDA FBITS    WAS T SPECIFIED?
+2090        AND #$04
+2100        BEQ .1       ...NO
+2110        LDA VAL.T    WHAT WAS SPEC?
+2120        BCS .2       ...always, use spec'd type
+2130 .1     LDA #$06     ...new file, type not spec'd, T=BIN
+2140        BIT PASS     $FF if command level, 0 or 1 if assembling
+2150        BPL .4       ...assembling, make BIN file
+2160        LDA #$04     ...command, make TXT file
+2170 .4     STA VAL.T
+2180 .2     STA GET.SET.PARMS+4
+2190        LDA #$C3     FULL ACCESS PRIVILEGES
+2200        STA GET.SET.PARMS+3
+2210        LDA #0       RECORD LENGTH = 0000
+2220        STA CREATE.PARMS+5
+2230        STA CREATE.PARMS+6
+2240        STA GET.SET.PARMS+5
+2250        STA GET.SET.PARMS+6
+2260        JSR MAKE.A.FILE   CREATE THE FILE
+2270        BCS .8       ...ERROR
+2280 *---NOW THE FILE EXISTS----------
+2290 *---OPEN THE FILE----------------
+2300 .3     JSR ALLOCATE.LOWER.BUFFER
+2310        STA OPEN.PARMS+4 STARTING PAGE OF BUFFER
+2320        LDA #$07     LEVEL #
+2330        STA LEVEL
+2340        JSR MLI.C8   OPEN
+2350        BCS .8       ...ERROR
+2360 *---SAVE NAME, ETC OF OPEN FILE--
+2370        LDA OPEN.PARMS+4      MARK THE BUFFER IN USE
+2380        STA FILE.BUFFER.PNTRS,X
+2390        LDA OPEN.PARMS+5      REFNUM
+2400        STA FILE.REFNUMS,X
+2410        JSR SAVE.FILENAME.IN.TABLE
+2420        CLC
+2430 .8     RTS
+2440 *--------------------------------
+2450 .9     PLP
+2460        JMP ERR.FILE.BUSY
+2470 *--------------------------------
+2480 SAVE.FILENAME.IN.TABLE
+2490        TXA
+2500        ASL          INDEX TIMES 32
+2510        ASL
+2520        ASL
+2530        ASL
+2540        ASL
+2550        TAX
+2560 *---FORM NAME LENGTH BYTE--------
+2570        LDA PATHNAME.TWO.BUFFER
+2580        STA OPEN.FILE.NAME.BUFFERS,X
+2590        TAY          SAVE ACTUAL LENGTH
+2600        CMP #30      ONLY ROOM FOR 29 CHARS
+2610        BCC .1       ...'TWILL FIT
+2620        LDA #29      USE LAST 29 CHARS
+2630 .1     STA FNLEN  
+2640        LDA VAL.L
+2650        STA OPEN.FILE.NAME.BUFFERS+1,X
+2660        LDA VAL.L+1
+2670        STA OPEN.FILE.NAME.BUFFERS+2,X
+2680 .2     INX
+2690        LDA PATHNAME.TWO.BUFFER,Y
+2700        STA OPEN.FILE.NAME.BUFFERS+2,X
+2710        DEY
+2720        DEC FNLEN  
+2730        BNE .2
+2740        CLC
+2750        RTS
+2760 *--------------------------------
+2770 *   SEARCH OPEN FILE NAME TABLE
+2780 *      RETURN .CS., A=ERRCOD IF NO PATHNAME
+2790 *                            OR IF NOT IN TABLE
+2800 *      RETURN .CC., A=REFNUM IF FOUND IN TABLE
+2810 *--------------------------------
+2820 GET.REFNUM.OF.OPEN.FILE
+2830        LDA FBITS    WAS PATHNAME GIVEN?
+2840        LSR
+2850        BCS .1       ...YES
+2860        JMP ERR.SYNTAX   ...NO, "SYNTAX ERROR"
+2870 *---CHECK AMONG NON-EXEC FILES---
+2880 .1     LDX #1       MAX # OF FILES IS 2
+2890        STX EXEC.FILE.CLOSING.FLAG
+2900 .2     LDA FILE.BUFFER.PNTRS,X  SEE IF IN USE
+2910        BEQ .3       NO
+2920        JSR COMPARE.TO.FILE.NAME.BUFFER
+2930        BCC .5       ...FOUND IT
+2940 .3     DEX
+2950        BPL .2
+2960 *---CHECK EXEC FILE--------------
+2970        BIT F.EXEC   IS EXEC ON?
+2980        BPL .4       ...NO, FILE NOT OPEN
+2990        LDX #2       ...YES
+3000        JSR COMPARE.TO.FILE.NAME.BUFFER
+3010        BCS .4       ...NOT THIS ONE EITHER
+3020        LDA #$FF
+3030        STA EXEC.FILE.CLOSING.FLAG
+3040        LDA EXEC.REFNUM
+3050        RTS          RETURN .CC.
+3060 .4     LDA #$12     "FILE NOT OPEN"
+3070        SEC
+3080        RTS          RETURN .CS.
+3090 .5     LDA FILE.REFNUMS,X
+3100        RTS          RETURN .CC.
+3110 *--------------------------------
+3120 *   COMPARE NAMES
+3130 *      RETURN .CC. IF SAME, ELSE .CS.
+3140 *--------------------------------
+3150 COMPARE.TO.FILE.NAME.BUFFER
+3160        TXA
+3170        PHA          SAVE X-REGISTER
+3180        ASL          INDEX TIMES 32
+3190        ASL
+3200        ASL
+3210        ASL
+3220        ASL
+3230        TAX
+3240        LDA OPEN.FILE.NAME.BUFFERS,X
+3250        CMP PATHNAME.TWO.BUFFER
+3260        BNE .3       ...DIFFERENT LENGTHS
+3270        TAY          POINT TO END OF PATHNAME
+3280        CMP #30      CHOP AT 29
+3290        BCC .1
+3300        LDA #29
+3310 .1     STA FNLEN  
+3320        LDA OPEN.FILE.NAME.BUFFERS+1,X
+3330        STA RECORD.LENGTH
+3340        LDA OPEN.FILE.NAME.BUFFERS+2,X
+3350        STA RECORD.LENGTH+1
+3360 .2     INX
+3370        LDA PATHNAME.TWO.BUFFER,Y
+3380        CMP OPEN.FILE.NAME.BUFFERS+2,X
+3390        BNE .3       NOT THE SAME NAME
+3400        DEY
+3410        DEC FNLEN  
+3420        BNE .2       MORE TO THE NAME
+3430        CLC          SIGNAL SAME NAMES
+3440        .HS B0       "BCS" OPCODE, SKIPS OVER "SEC"
+3450 .3     SEC          SIGNAL DIFFERENT NAMES
+3460        PLA          RESTORE X-REG
+3470        TAX
+3480        RTS
+3490 *--------------------------------
+3500 CLOSE
+3510        LDA FBITS
+3520        LSR          ANY PATHNAME GIVEN?
+3530        BCC CLOSE.ALL.FILES   ...NO
+3540        JSR GET.REFNUM.OF.OPEN.FILE
+3550        BCC CLOSE.ONE.FILE   ...OPEN, SO CLOSE IT
+3560        CLC          ...NOT OPEN, SO FINISHED
+3570        RTS
+3580 *--------------------------------
+3590 *   CLOSE A FILE ... REFNUM IN A-REG
+3600 *                    INDEX IN X-REG
+3610 *--------------------------------
+3620 CLOSE.ONE.FILE
+3630        STA CLOSE.FLUSH.PARMS+1      REFNUM
+3640        LDA #0
+3650        STA LEVEL        LEVEL 0
+3660        JSR MLI.CC        CLOSE
+3670        BCS RTS2          ...ERROR
+3680        LDA #0
+3690        BIT EXEC.FILE.CLOSING.FLAG
+3700        BPL .1
+3710        STA F.EXEC
+3720        STA EXEC.FILE.CLOSING.FLAG
+3730        RTS
+3740 .1     STA FILE.BUFFER.PNTRS,X
+3750        LDA CLOSE.FLUSH.PARMS+1
+3760        EOR WRITE.REFNUM  TEST .EQ., LEAVE CARRY CLEAR
+3770        BNE RTS2          ...NOT SAME AS "WRITE" FILE
+3780 *--------------------------------
+3790 UNHOOK.WRITE
+3800        BIT F.WRITE
+3810        BPL RTS2
+3820        LDA VDOSIO
+3830        STA CSWL
+3840        LDA VDOSIO+1
+3850        STA CSWH
+3860        LDA #0
+3870        STA F.WRITE
+3880 RTS2   RTS
+3890 *--------------------------------
+3900 CLOSE.ALL.FILES
+3910        LDX #1       MAX FILES IS 2
+3920 .1     LDA FILE.BUFFER.PNTRS,X
+3930        BEQ .2       NOT IN USE
+3940        LDA FILE.REFNUMS,X
+3950        JSR CLOSE.ONE.FILE
+3960        BCS RTS2
+3970 .2     DEX
+3980        BPL .1
+3990        INX          X=0
+4000        STX CLOSE.FLUSH.PARMS+1
+4010        LDA #$07
+4020        STA LEVEL
+4030        JMP MLI.CC   CLOSE
+4040 *--------------------------------
+4050 *   ALLOCATE UPPER/LOWER BUFFER
+4060 *--------------------------------
+4070 ALLOCATE.UPPER.BUFFER
+4080        LDX #1
+4090        .HS 2C
+4100 ALLOCATE.LOWER.BUFFER
+4110        LDX #0
+4120 .2     LDA BUFFER.BASES,X
+4130        STA ALLOCATED.BUFFER.PAGE
+4140        CLC
+4150        RTS
+4160 *--------------------------------

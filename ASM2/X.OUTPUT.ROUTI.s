@@ -1,0 +1,246 @@
+
+1000 *SAVE X.OUTPUT.ROUTI
+1010 *---------------------------------
+1020 *    ERROR PRINTER
+1030 *---------------------------------
+1040 FIRM.ERROR
+1050        SEC          SIGNAL FIRM ERROR
+1060        .HS 24       SKIP NEXT BYTE
+1070 SOFT.ERROR
+1080        CLC          SIGNAL SOFT ERROR
+1090        LDA PASS     SEE IF IN ASSEMBLY
+1100        BMI HARD.ERROR    ...NO
+1110        PHP          SAVE CLC/SEC STATUS
+1120        LDA RDROM
+1130        JSR PRINT.ERROR.MESSAGE
+1140       >INCD ERROR.COUNT
+1150        JSR SPC
+1160        JSR LIST.SOURCE.AT.MARGIN
+1170        JSR CRLF
+1180        PLP          GET SOFT/FIRM STATUS
+1190        BCS JMP.SOFT ...FIRM, ABORT ASSEMBLY
+1200        JMP ASM2     ...SOFT, CONTINUE ASSEMBLY
+1210 HARD.ERROR
+1220        JSR PRINT.ERROR.MESSAGE
+1230 JMP.SOFT
+1240        JSR RESTORE.IF.IN.INBX
+1250        JMP SOFT
+1260 *--------------------------------
+1270 RESTORE.IF.IN.INBX
+1280        BIT INFLAG
+1290        BVC .1
+1300        JSR RESTORE
+1310 .1     RTS
+1320 *--------------------------------
+1330 P.EXP.VALUE.DASH
+1340        JSR CHECK.IF.LISTING
+1350        JSR P.EXP.VALUE
+1360 P.DASH LDA #'-'
+1370        .HS 2C
+1380 P.RETURN
+1390        LDA #$0D
+1400        .HS 2C
+1410 SPC    LDA #' '      ONE SPACE
+1420 CHO    PHA
+1430        ORA #$80      CHAR OUT
+1440        JSR MY.COUT    SEND THE CHARACTER
+1450        PLA
+1460        RTS
+1470 *---------------------------------
+1480 *      PRINT A 
+1490 *      IF IN "SLOW" MODE, DELAY FIRST
+1500 *      CHECK KEYBOARD FOR PAUSE OR ABORT
+1510 *--------------------------------
+1520 CRLF   BIT FLAG.SPEED CHECK SLOW/FAST SPEED
+1530        BPL .1       FAST
+1540        LDA #0       SLOW
+1550        JSR MON.DELAY
+1560 .1     JSR CHECK.KEYBOARD.FOR.ABORT
+1570        BCC P.RETURN ...NO KEYPRESS
+1580        BEQ JMP.SOFT ...ABORT
+1590 .2     JSR CHECK.KEYBOARD.FOR.ABORT
+1600        BCC .2       WAIT FOR KEYPRESS
+1610        BNE P.RETURN ...CONTINUE
+1620        BEQ JMP.SOFT ...ABORT
+1630 *--------------------------------
+1640 *      RETURN .CC. AND .NE. IF NO KEYPRESS
+1650 *      RETURN .CS. AND .EQ. IF  TYPED
+1660 *      RETURN .CS. AND .NE. IF ANY OTHER KEY
+1670 *--------------------------------
+1680 CHECK.KEYBOARD.FOR.ABORT
+1690        CLC
+1700        LDA $C000
+1710        BPL .1
+1720        STA $C010
+1730        CMP #$8D
+1740        SEC
+1750 .1     RTS
+1760 *--------------------------------
+1770 *      PRINT ERROR MESSAGE
+1780 *--------------------------------
+1790 PRINT.ERROR.MESSAGE
+1800        TYA           SAVE ERROR #
+1810        TAX               IN X-REG
+1820        LDY #QSTARS     "*** "
+1830        JSR QT.OUT
+1840        TXA
+1850        TAY
+1860        JSR QT.OUT
+1870        LDY #QERROR
+1880        JMP QT.OUT
+1890 *--------------------------------
+1900 *      PRINT LOCATION COUNTER AND DASH
+1910 *--------------------------------
+1920 P.ORIGIN
+1930        JSR CHECK.IF.LISTING
+1940 P.ORIGIN.REGARDLESS
+1950        LDX #7       assume col. 7 after 6-digit origin
+1960        LDY #2
+1970        LDA ORGN+2   If > $FFFF, print 3 bytes
+1980        BNE .1       ...orgn > $FFFF, print 3 bytes
+1990        DEY          ...orgn <$10000, print 2 bytes
+2000        LDX #5       will end up in col. 5
+2010 .1     STX EMIT.COLUMN
+2020 .2     LDA ORGN,Y      HIGH BYTE FIRST
+2030        JSR MON.PHEX
+2040        DEY
+2050        BPL .2
+2060        JMP P.DASH   PRINT "-"
+2070 *--------------------------------
+2080 P.EMITTED.BYTE
+2090        JSR CHECK.IF.LISTING
+2100        LDY EMIT.COLUMN
+2110        BEQ .2       ...AT BEGINNING OF LINE
+2120        LDY EMIT.MARGIN
+2130        LDA ORGN+2
+2140        BNE .1
+2150        DEY
+2160        DEY
+2170 .1     CPY EMIT.COLUMN
+2180        BCS .3       ...STILL ROOM ON THIS LINE
+2190        BIT LF.XTRA.BYTES
+2200        BMI .4
+2210        JSR CRLF.WITH.PAGING
+2220 .2     JSR P.ORIGIN
+2230 .3     LDY EMIT.COLUMN
+2240        INY          MAKE ROOM FOR NEXT BYTE
+2250        INY
+2260        INY
+2270        STY EMIT.COLUMN
+2280        JSR SPC
+2290        LDA OBJ.BYTE
+2300        JMP MON.PHEX
+2310 .4     RTS
+2320 *--------------------------------
+2330 P.MARGIN
+2340        SEC
+2350        LDA EMIT.MARGIN
+2360        SBC EMIT.COLUMN
+2370        TAX
+2380        LDA ORGN+2
+2390        BEQ .1
+2400        INX
+2410        INX
+2420 .1     JMP MON.PRBL2
+2430 *--------------------------------
+2440 P.EXP.VALUE
+2450        LDY #3       EXP.VALUE IS 4 BYTES
+2460 .1     LDA EXP.VALUE,Y   TRIM LEADING ZERO BYTES
+2470        BNE .2            ...FIRST NON-ZERO BYTE
+2480        DEY
+2490        BNE .1            ...STILL NOT LAST BYTE
+2500 .2     TYA
+2510        ASL
+2520        ADC #3
+2530        STA EMIT.COLUMN
+2540 .3     LDA EXP.VALUE,Y   PRINT REST OF EXP.VALUE
+2550        JSR MON.PHEX
+2560        DEY
+2570        BPL .3
+2580        RTS
+2590 *--------------------------------
+2600 CHECK.IF.LISTING
+2610        LDA PASS
+2620        BEQ .1       ...NO LISTING IN PASS 1
+2630        LDA LF.ALL
+2640        BPL .2       ...YES, LIST
+2650 .1     PLA          POP RETURN
+2660        PLA
+2670 .2     RTS
+2680 *--------------------------------
+2690 LIST.LINE.BOTH.PASSES
+2700        LDA PASS
+2710        BEQ .1       DEFINITE IN PASS 1
+2720        LDA LF.ALL
+2730        BPL .2       ...ALREADY DID CRLF
+2740 .1     JSR CRLF.WITH.PAGING
+2750 .2     JSR P.ORIGIN.REGARDLESS
+2760        JMP LIST.SOURCE.REGARDLESS
+2770 *---------------------------------
+2780 *      CONVERT LINE NUMBER
+2790 *      (CURRENT.LINE.NUMBER) = NUMBER TO USE
+2800 *---------------------------------
+2810 CONVERT.LINE.NUMBER.BOTH
+2820        LDA #$C0     PRINT FLAG ON, STORE FLAG ON
+2830        .HS 2C       SKIP NEXT 2 BYTES
+2840 CONVERT.LINE.NUMBER.STORE
+2850        LDA #$80     PRINT FLAG OFF, STORE FLAG ON
+2860        .HS 2C       SKIP NEXT 2 BYTES
+2870 CONVERT.LINE.NUMBER.PRINT
+2880        LDA #$40     PRINT FLAG ON, STORE FLAG OFF
+2890        PHA
+2900        LDX #3       CONVERT 4 DIGITS
+2910        LDA CURRENT.LINE.NUMBER
+2920        CMP #10000
+2930        LDA CURRENT.LINE.NUMBER+1
+2940        SBC /10000
+2950        BCC .1       4 DIGITS WILL DO IT
+2960        INX          5 DIGITS
+2970 .1     PLA
+2980 *--------------------------------
+2990 *   CONVERT (CURRENT.LINE.NUMBER)
+3000 *      (X) = ONE LESS THAN NUMBER OF DIGITS
+3010 *      (A) = FLAGS:  BIT 7 = 1 MEANS TO STORE AT WBUF,Y
+3020 *                    BIT 6 = 1 MEANS TO PRINT
+3030 *--------------------------------
+3040 CONVERT.LINE.NUMBER
+3050        STA CONV.CTRL
+3060 .5     LDA #$B0     SET DIGIT TO ASCII ZERO
+3070 .1     PHA          PUSH DIGIT ON STACK
+3080        SEC          SUBTRACT CURRENT DIVISOR
+3090        LDA CURRENT.LINE.NUMBER
+3100        SBC PLNTBL,X
+3110        PHA          SAVE BYTE ON STACK
+3120        LDA CURRENT.LINE.NUMBER+1
+3130        SBC PLNTBH,X
+3140        BCC .2       LESS THAN DIVISOR
+3150        STA CURRENT.LINE.NUMBER+1
+3160        PLA          GET LOW BYTE OFF STACK
+3170        STA CURRENT.LINE.NUMBER
+3180        PLA          GET DIGIT FROM STACK
+3190        ADC #0       INCREMENT DIGIT
+3200        BNE .1       ...ALWAYS
+3210 .2     PLA          DISCARD BYTE FROM STACK
+3220        PLA          GET DIGIT FROM STACK
+3230        BIT CONV.CTRL
+3240        BVC .3       NO PRINT
+3250        JSR MON.COUT PRINT CHARACTER
+3260 .3     BIT CONV.CTRL      TEST BUFFER STORAGE FLAG
+3270        BPL .4       OFF, DO NOT STORE IN BUFFER 
+3280        STA WBUF,Y
+3290        INY
+3300 .4     DEX          NEXT DIGIT
+3310        BPL .5
+3320        RTS          RETURN
+3330 *---------------------------------
+3340 PLNTBL .DA #1
+3350        .DA #10
+3360        .DA #100
+3370        .DA #1000
+3380        .DA #10000
+3390 PLNTBH .DA /1
+3400        .DA /10
+3410        .DA /100
+3420        .DA /1000
+3430        .DA /10000
+3440 *--------------------------------

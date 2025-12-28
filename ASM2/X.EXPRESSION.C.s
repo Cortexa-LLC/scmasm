@@ -1,0 +1,410 @@
+
+1000 *SAVE X.EXPRESSION.C
+1010 *--------------------------------
+1020 *    EXPRESSION CRACKER
+1030 *-------------------------------
+1040 EXPR.DEFINED
+1050        JSR EXPR
+1060        BMI .1
+1070        RTS
+1080 .1     JMP UNDF
+1090 *--------------------------------
+1100 OPERATOR.CHARS
+1110        .AS "^!|&<=>/*)], "
+1120 OPERATOR.CHARS.SIZE .EQ *-OPERATOR.CHARS
+1130 *--------------------------------
+1140 OPERATOR.INDEX
+1150        .HS 0C.0A.0A.08.0E.10.12.06.04.FF.FF.FF.FF
+1160 *          ^  !  |  &  <  =  >  /  *  )  ]  ,  SPC
+1170 *--------------------------------
+1180 OPERATOR.TABLE
+1190        .DA EXP.SUBTRACT-1   0 FOR -<=>
+1200        .DA EXP.ADD-1        2 FOR +
+1210        .DA EXP.MULTIPLY-1   4 FOR *
+1220        .DA EXP.DIVIDE-1     6 FOR /
+1230        .DA EXP.AND-1        8 FOR &
+1240        .DA EXP.ORA-1        A FOR !|
+1250        .DA EXP.EOR-1        C FOR ^
+1260        .DA EXP.LESS-1       E FOR <
+1270        .DA EXP.EQUAL-1     10 FOR =
+1280        .DA EXP.GREATER-1   12 FOR >
+1290 *--------------------------------
+1300 ERBA3  JMP ERBA
+1310 *--------------------------------
+1320 EXPR   JSR GNNB      GET NEXT NON-BLANK
+1330        BCS ERBA3     NO EXPRESSION ON LINE
+1340        JSR BACKUP.CHAR.PNTR
+1350 *--------------------------------
+1360 EXP1   JSR ZERO.EXP.VALUE
+1370        STA EXP.NEW   NEW EXPRESSION FLAG = 0
+1380        STA EXP.UNDEF ZERO UNDEF FLAG
+1390        LDX #$40     INIT FWD REF FLAG
+1400        STX EXP.FWDREF
+1410 *--------------------------------
+1420 EXP2   LDX #0        SET OPERATOR=0 FOR +
+1430        JSR GNC.UC
+1440        BCS .3        END OF LINE
+1450        CMP #'-      MINUS
+1460        BEQ .6       X=0 FOR MINUS OR RELOPS
+1470        LDX #2       X=2 FOR ADDITION
+1480        CMP #'+      ADD
+1490        BEQ .6
+1500        LDY EXP.NEW   NOT + OR -
+1510        BEQ .7        BUT IT IS NEW EXPR
+1520        LDX #OPERATOR.CHARS.SIZE-1
+1530 .1     LDA OPERATOR.CHARS,X
+1540        CMP CURRENT.CHAR
+1550        BEQ .2
+1560        DEX
+1570        BPL .1
+1580        JMP ERBA
+1590 *---FOUND OP OR TERM CHAR--------
+1600 .2     LDA OPERATOR.INDEX,X
+1610        BPL .5       ...OPERATOR
+1620 *---END OF EXPRESSION-----------
+1630        JSR BACKUP.CHAR.PNTR
+1640 .3     LDY EXP.UNDEF UNDEF FLAG
+1650        BPL .4
+1660        JSR ZERO.EXP.VALUE
+1670        TYA          RECOVER UNDEF STATUS
+1680 .4     RTS
+1690 *--------------------------------
+1700 .5     TAX
+1710 .6     JSR GNC.UC
+1720 .7     INC EXP.NEW  NOT A NEW EXPRESSION ANYMORE
+1730        LDA OPERATOR.TABLE+1,X
+1740        PHA
+1750        LDA OPERATOR.TABLE,X
+1760        PHA
+1770 *-------------------------------
+1780 *      GET OPERAND
+1790 *-------------------------------
+1800 GET.OPERAND
+1810        JSR ZERO.SYM.VALUE
+1820        LDA CURRENT.CHAR
+1830        CMP #$30     FIRST CHAR OF OPERAND
+1840        BCC .3       PUNCTUATION
+1850        CMP #$3A
+1860        BCS .2       MIGHT BE LETTER, TRY LABEL
+1870        JSR DECN     CONVERT DECIMAL NUMBER
+1880 .15    JMP BACKUP.CHAR.PNTR
+1890 *---TRY A LABEL------------------
+1900 .2     JSR PACK     TRY LABEL
+1910        BCC .4       NO GOOD
+1920        JSR STSRCH   LOOK UP THE VALUE
+1930        LDY #6       UPDATE FWD REF FLAG
+1940        >SYM LDA,STPNTR
+1950        AND EXP.FWDREF
+1960        STA EXP.FWDREF
+1970        BCC .1       DEFINED LABEL
+1980        ROR EXP.UNDEF  UNDEFINED, MAKE FLAG NEGATIVE
+1990 .1     RTS
+2000 *---TRY LOCAL LABEL--------------
+2010 .3     CMP #'.
+2020        BEQ .2       LOCAL LABEL
+2030 *---TRY CONSTANTS----------------
+2040        LDX #3       3-->HEX CONSTANT
+2050        CMP #'$
+2060        BEQ .5       HEX CONSTANT
+2070        DEX          2-->OCT CONSTANT
+2080        CMP #'&'
+2090        BEQ .5       ...OCTAL
+2100        LDX #0       0-->BIN CONSTANT
+2110        CMP #'%      BINARY CONSTANT
+2120        BEQ .5       ...BINARY
+2130 *---TRY LITERALS-----------------
+2140        CMP #''      (X = 0)
+2150        BEQ .6       LITERAL
+2160        CMP #'"      LITERAL WITH HIGH BIT SET
+2170        BEQ .9
+2180 *---TRY STAR---------------------
+2190        CMP #'*
+2200        BNE .4       ...NONE OF THE ABOVE, ERROR
+2210        LDX #3       VALUE IS CURRENT LOCATION
+2220 .7     LDA ORGN,X
+2230        STA SYM.VALUE,X
+2240        DEX
+2250        BPL .7
+2260        RTS
+2270 *---INVALID OPERAND--------------
+2280 .4     JMP ERBA     BAD ADDRESS ERROR
+2290 *---HEX/OCT/BIN CONSTANT--------
+2300 .5     JSR HEX.OCT.BIN.DGT     $ABCD, &777, %1010
+2310        BCC .4       NO, ERROR BAD ADDRESS
+2320 .8     JSR HEX.OCT.BIN.DGT.1   GET ANOTHER DIGIT
+2330        BCS .8
+2340        BCC .15      ...ALWAYS
+2350 *---TICK & QUOTE LITERALS-------
+2360 .9     LDX #$80     HIBIT=1
+2370 .6     STX SYM.VALUE
+2380        STA DGTCNT   SAVE ' OR " FOR OPTIONAL TERMCHAR
+2390        JSR GNC      GET FOLLOWING CHAR
+2400        BCS .4       END OF LINE
+2410        ORA SYM.VALUE     SET HIGH BIT
+2420        STA SYM.VALUE
+2430        JSR GNC         SEE IF CLOSING QUOTE
+2440        CMP DGTCNT   (IT IS OPTIONAL)
+2450        BNE .15      NO, BACK UP CHAR PNTR
+2460        RTS
+2470 *-------------------------------
+2480 *    IF NEXT CHAR IS VALID DIGIT,
+2490 *    APPEND IT TO CURRENT VALUE
+2500 *
+2510 *      (X) DETERMINES BASE:  0-->2, 2-->8, 3-->16
+2520 *-------------------------------
+2530 HEX.DIGIT
+2540        LDX #3
+2550 HEX.OCT.BIN.DGT
+2560        STX BASE.INDEX
+2570 HEX.OCT.BIN.DGT.1
+2580 .1     JSR GNC.UC   IGNORE CASE
+2590        CMP #'.'     ALLOW PERIODS
+2600        BEQ .1       ...BUT IGNORE THEM
+2610        EOR #$30
+2620        CMP #$0A
+2630        BCC .3       ...0-9, TEXT VALIDITY
+2640        ADC #$88     ...MIGHT BE A...F
+2650 .2     CMP #$FA
+2660        BCC .5       NOT A-F EITHER, RETURN CARRY CLEAR
+2670        AND #$0F     TRIM HEX A...F
+2680 .3     LDX BASE.INDEX
+2690        CMP BASE.TABLE,X  CHECK REAL RANGE
+2700        BCS .2       ...NOT VALID, CLR CARRY WITH 'CMP #$FA'
+2710        PHA          SAVE DIGIT
+2720 .4     JSR ASL.SYM.VALUE
+2730        DEX          MAKE ROOM FOR DIGIT
+2740        BPL .4
+2750        PLA          GET DIGIT
+2760        ORA SYM.VALUE     MERGE WITH PREVIOUS
+2770        STA SYM.VALUE
+2780        SEC          FLAG GOT A DIGIT
+2790 .5     RTS
+2800 *--------------------------------
+2810 BASE.TABLE
+2820        .DA #2,#2,#8,#16
+2830 ASL.SYM.VALUE
+2840        CLC
+2850 ROL.SYM.VALUE
+2860        ROL SYM.VALUE
+2870        ROL SYM.VALUE+1
+2880        ROL SYM.VALUE+2
+2890        ROL SYM.VALUE+3
+2900        RTS
+2910 *--------------------------------
+2920 ZERO.EXP.VALUE
+2930        LDA #0
+2940        STA EXP.VALUE
+2950        STA EXP.VALUE+1
+2960        STA EXP.VALUE+2
+2970        STA EXP.VALUE+3
+2980        RTS
+2990 *--------------------------------
+3000 ZERO.EXP.VALUE64
+3010        LDA #0
+3020        STA EXP.VALUE64
+3030        STA EXP.VALUE64+1
+3040        STA EXP.VALUE64+2
+3050        STA EXP.VALUE64+3
+3060        RTS
+3070 *--------------------------------
+3080 ZERO.SYM.VALUE
+3090        LDA #0
+3100        STA SYM.VALUE
+3110        STA SYM.VALUE+1
+3120        STA SYM.VALUE+2
+3130        STA SYM.VALUE+3
+3140        RTS
+3150 *--------------------------------
+3160 EXP.AND
+3170        LDX #3
+3180 .1     LDA EXP.VALUE,X
+3190        AND SYM.VALUE,X
+3200        STA EXP.VALUE,X
+3210        DEX
+3220        BPL .1
+3230        JMP EXP2
+3240 *--------------------------------
+3250 EXP.ORA
+3260        LDX #3
+3270 .1     LDA EXP.VALUE,X
+3280        ORA SYM.VALUE,X
+3290        STA EXP.VALUE,X
+3300        DEX
+3310        BPL .1
+3320        JMP EXP2
+3330 *--------------------------------
+3340 EXP.EOR
+3350        LDX #3
+3360 .1     LDA EXP.VALUE,X
+3370        EOR SYM.VALUE,X
+3380        STA EXP.VALUE,X
+3390        DEX
+3400        BPL .1
+3410        JMP EXP2
+3420 *--------------------------------
+3430 EXP.ADD
+3440        CLC           PLUS
+3450        LDX #-4
+3460 .1     LDA EXP.VALUE+4,X
+3470        ADC SYM.VALUE+4,X
+3480        STA EXP.VALUE+4,X
+3490        INX
+3500        BNE .1
+3510        JMP EXP2
+3520 *--------------------------------
+3530 EXP.SUBTRACT
+3540        JSR EXP.SUBTRACTION
+3550        JMP EXP2
+3560 *--------------------------------
+3570 EXP.SUBTRACTION
+3580        SEC
+3590        LDX #-4
+3600 .7     LDA EXP.VALUE+4,X
+3610        SBC SYM.VALUE+4,X
+3620        STA EXP.VALUE+4,X
+3630        INX
+3640        BNE .7
+3650        RTS
+3660 *--------------------------------
+3670 EXP.LESS
+3680        JSR EXP.SUBTRACTION
+3690        LDA EXP.VALUE+3
+3700        BMI EXP.TRUE
+3710 EXP.FALSE
+3720        CLC
+3730 EXP.TRUE.OR.FALSE
+3740        JSR ZERO.EXP.VALUE
+3750        ROL EXP.VALUE
+3760        JMP EXP2
+3770 *--------------------------------
+3780 EXP.EQUAL
+3790        JSR EXP.SUBTRACTION
+3800        JSR TEST.EXP.VALUE
+3810        BNE EXP.FALSE
+3820 EXP.TRUE
+3830        SEC
+3840        BCS EXP.TRUE.OR.FALSE
+3850 *--------------------------------
+3860 TEST.EXP.VALUE.ZP
+3870        LDA #0
+3880        .HS 2C
+3890 TEST.EXP.VALUE
+3900        LDA EXP.VALUE
+3910        ORA EXP.VALUE+1
+3920        ORA EXP.VALUE+2
+3930        ORA EXP.VALUE+3
+3940        RTS
+3950 *--------------------------------
+3960 EXP.GREATER
+3970        JSR EXP.SUBTRACTION
+3980        JSR TEST.EXP.VALUE
+3990        BEQ EXP.FALSE
+4000        LDA EXP.VALUE+3   LOOK AT SIGN BIT
+4010        BMI EXP.FALSE
+4020        BPL EXP.TRUE
+4030 *-------------------------------
+4040 EXP.DIVIDE
+4050        JSR EXP.DIVISION
+4060        JMP EXP2
+4070 *--------------------------------
+4080 EXP.DIVISION
+4090        JSR ZERO.EXP.VALUE64
+4100        LDY #32      32 BITS
+4110 .1     ASL EXP.VALUE SHIFT DIVIDEND/QUOTIENT LEFT
+4120        ROL EXP.VALUE+1
+4130        ROL EXP.VALUE+2
+4140        ROL EXP.VALUE+3
+4150        ROL EXP.VALUE64  SHIFT PARTIAL DIVIDEND LEFT
+4160        ROL EXP.VALUE64+1
+4170        ROL EXP.VALUE64+2
+4180        ROL EXP.VALUE64+3
+4190        SEC          SUBTRACT DIVISOR FROM PARTIAL DIVIDEND
+4200        LDA EXP.VALUE64
+4210        SBC SYM.VALUE
+4220        PHA          SAVE LO-BYTE OF DIFFERENCE ON STACK
+4230        LDA EXP.VALUE64+1
+4240        SBC SYM.VALUE+1
+4250        PHA
+4260        LDA EXP.VALUE64+2
+4270        SBC SYM.VALUE+2
+4280        PHA
+4290        LDA EXP.VALUE64+3
+4300        SBC SYM.VALUE+3
+4310        BCC .2       REMAINDER TOO SMALL
+4320        INC EXP.VALUE SET BIT IN QUOTIENT
+4330        STA EXP.VALUE64+3  HI-BYTE OF REMAINDER
+4340        PLA          RETRIEVE NEXT BYTE OF REMAINDER
+4350        STA EXP.VALUE64+2
+4360        PLA
+4370        STA EXP.VALUE64+1
+4380        PLA
+4390        STA EXP.VALUE64
+4400        BCS .3
+4410 .2     PLA          STACK BACK TO NORMAL
+4420        PLA
+4430        PLA
+4440 .3     DEY          NEXT BIT
+4450        BNE .1
+4460        RTS
+4470 *--------------------------------
+4480 EXP.MULTIPLY
+4490        JSR ZERO.EXP.VALUE64
+4500        LDY #32      32-BIT MULTIPLY
+4510 .1     LDA EXP.VALUE CHECK LSB OF MULTIPLIER
+4520        LSR
+4530        BCC .2       IF 0, DON'T ADD MULTIPLICAND
+4540        CLC          ADD MULTIPLICAND
+4550        LDA EXP.VALUE64
+4560        ADC SYM.VALUE
+4570        STA EXP.VALUE64
+4580        LDA EXP.VALUE64+1
+4590        ADC SYM.VALUE+1
+4600        STA EXP.VALUE64+1
+4610        LDA EXP.VALUE64+2
+4620        ADC SYM.VALUE+2
+4630        STA EXP.VALUE64+2
+4640        LDA EXP.VALUE64+3
+4650        ADC SYM.VALUE+3
+4660        STA EXP.VALUE64+3
+4670 .2     ROR EXP.VALUE64+3
+4680        ROR EXP.VALUE64+2
+4690        ROR EXP.VALUE64+1
+4700        ROR EXP.VALUE64
+4710        ROR EXP.VALUE+3
+4720        ROR EXP.VALUE+2
+4730        ROR EXP.VALUE+1
+4740        ROR EXP.VALUE
+4750        DEY
+4760        BNE .1
+4770        JMP EXP2
+4780 *-------------------------------
+4790 *    MGO COMMAND
+4800 *-------------------------------
+4810 MGO    JSR EXPR.DEFINED     CRACK EXPRESSION
+4820        JMP (EXP.VALUE)  ENTER USER'S PROGRAM
+4830 *--------------------------------
+4840 *      VAL COMMAND
+4850 *--------------------------------
+4860 VAL    JSR EXPR.DEFINED     GET VALUE OF EXPRESSION
+4870        LDA #'$'
+4880        JSR CHO
+4890        JSR P.EXP.VALUE
+4900        LDA #'='
+4910        JSR CHO
+4920        JSR ZERO.SYM.VALUE
+4930        TAX          X=0
+4940        LDA #10
+4950        STA SYM.VALUE
+4960 .1     JSR EXP.DIVISION
+4970        LDA EXP.VALUE64   REMAINDER
+4980        PHA
+4990        INX
+5000        JSR TEST.EXP.VALUE
+5010        BNE .1
+5020 .2     PLA
+5030        ORA #'0'
+5040        JSR CHO
+5050        DEX
+5060        BNE .2
+5070        JMP CRLF
+5080 *--------------------------------

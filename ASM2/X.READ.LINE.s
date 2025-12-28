@@ -1,0 +1,405 @@
+1000 *--------------------------------------
+1010        .MA JTBL
+1020        .DA #$]1,]2-1
+1030        .EM
+1040 *--------------------------------
+1050 CHAR.TABLES
+1060 CHARS.FOR.COMMANDS .EQ *-CHAR.TABLES
+1070        >JTBL 22,ECHO.LINE         "--ECHO REST OF LINE
+1080        >JTBL 2D,PASS.CMD.TO.PRODOS  DASH COMMAND
+1090        >JTBL 2E,USER.CMD          .--USER DOT COMMAND
+1100        >JTBL 2F,LINK.FSE          /--LINK TO F.S.E.
+1110        >JTBL 3F,HELP              ?--list commands
+1120        >JTBL 00,NML            other, try numbered line
+1130 *--------------------------------
+1140 CHARS.FOR.READ.LINE.1 .EQ *-CHAR.TABLES
+1150        >JTBL 83,RDL.CATALOG   ^C--MACRO FOR "CATALOG"
+1160        >JTBL 85,RDL.EDIT      ^E--MACRO FOR "EDIT "
+1170        >JTBL 86,RDL.FIND      ^F--MACRO FOR "FIND "
+1180        >JTBL 8C,RDL.LIST      ^L--MACRO FOR "LIST "
+1190        >JTBL 90,RDL.PREFIX    ^P--MACRO FOR "PREFIX"
+1200 CHARS.FOR.READ.LINE.2 .EQ *-CHAR.TABLES
+1210        >JTBL 88,RDL.BACKSPACE ^H--BACKSPACE
+1220        >JTBL 8A,RDL.DOWN      ^J--DOWN ARROW KEY
+1230        >JTBL 8B,RDL.UP        ^K--UP ARROW KEY
+1240        >JTBL 8D,RDL.EOL       ^M--CARRIAGE RETURN
+1250        >JTBL 8F,RDL.OVERRIDE  ^O--OVERRIDE
+1260        >JTBL 93,RDL.TOGGLE    ^S--TOGGLE CASE FLAG
+1270        >JTBL 95,RDL.RITARR    ^U--RIGHT ARROW
+1280        >JTBL 98,RDL.RUBOUT    ^X--RUBOUT LINE
+1290        >JTBL 9B,RDL.ESCAPE   ESC--ESCAPE MODE
+1300        >JTBL 00,RDL.ERR
+1310 *--------------------------------
+1320 CHARS.FOR.ESCAPE      .EQ *-CHAR.TABLES
+1330        >JTBL C0,IO.HOME        @--CLEAR SCREEN AND HOME
+1340        >JTBL C1,IO.RIGHT       A--MOVE CURSOR RIGHT
+1350        >JTBL C2,IO.LEFT        B--MOVE CURSOR LEFT
+1360        >JTBL C3,IO.DOWN        C--MOVE CURSOR DOWN
+1370        >JTBL C4,IO.UP          D--MOVE CURSOR UP
+1380        >JTBL C5,IO.CLREOL      E--CLEAR TO END OF LINE
+1390        >JTBL C6,IO.CLREOP      F--CLEAR TO END OF SCREEN
+1400        >JTBL C9,IO.UP          I--MOVE CURSOR UP
+1410        >JTBL CA,IO.LEFT        J--MOVE CURSOR LEFT
+1420        >JTBL CB,IO.RIGHT       K--MOVE CURSOR RIGHT
+1430        >JTBL CC,ESCAPE.L       L--"LOAD ..." OR "*---..."
+1440        >JTBL CD,IO.DOWN        M--MOVE CURSOR DOWN
+1450        >JTBL D3,ESCAPE.S       S--AUTO-SAVE LINE
+1460        >JTBL D5,USER.ESC.U     U--USER COMMAND
+1470        >JTBL AE,ESCAPE.DOT     .--LIS., COMMAND
+1480        >JTBL 88,IO.LEFT       ^H--LEFT ARROW KEY
+1490        >JTBL 95,IO.RIGHT      ^U--RIGHT ARROW KEY
+1500        >JTBL 8A,IO.DOWN       ^J--DOWN ARROW KEY
+1510        >JTBL 8B,IO.UP         ^K--UP ARROW KEY
+1520        >JTBL 00,RDL.ESC.END   END ESCAPE MODE
+1530 *--------------------------------
+1540 CHARS.FOR.EDIT        .EQ *-CHAR.TABLES
+1550        >JTBL 80,E.ZAP   ^@ -- Clear to EOL
+1560        >JTBL 81,E.INS   ^A -- Add (Insert)
+1570        >JTBL 82,E.BEG   ^B
+1580        >JTBL 84,E.DEL   ^D
+1590        >JTBL 86,E.FIND  ^F
+1600        >JTBL 88,E.BKSP  ^H
+1610        >JTBL 89,E.TABI  ^I -- Clear to tab
+1620        >JTBL 8C,E.DOWN  ^L
+1630        >JTBL 8D,E.RET   ^M
+1640        >JTBL 8E,E.END   ^N
+1650        >JTBL 8F,E.OVR   ^O
+1660        >JTBL 91,E.RETQ  ^Q -- Clear to EOL, Quit
+1670        >JTBL 92,E.RESTORE ^R -- Restore original line
+1680        >JTBL 93,E.TOGGLE  ^S -- TOGGLE CASE FLAG
+1690        >JTBL 94,E.TAB   ^T
+1700        >JTBL 95,E.RIT   ^U
+1710        >JTBL 98,E.ABORT ^X
+1720        >JTBL 00,E.ILLCHAR
+1730 *--------------------------------
+1740 RDL.TOGGLE
+1750        JSR IO.CASE.TOGGLE
+1760        JMP RDL3
+1770 *--------------------------------
+1780 RDL.UP
+1790        JSR IO.UP 
+1800        JMP RDL3
+1810 *--------------------------------
+1820 RDL.DOWN
+1830        JSR IO.DOWN
+1840        JMP RDL3
+1850 *--------------------------------
+1860 *      HANDLE TABULATION
+1870 *--------------------------------
+1880 TAB    TXA          SEE IF IN COLUMN 1
+1890        BEQ .4       YES, AUTO-LINE-NUMBER
+1900 .3     JSR E.CHECK.TAB
+1910        BCS .5            ONE MORE SPACE
+1920        LDA #CHR.BLANK
+1930        JSR INSTALL.CHAR
+1940        BCC .3       MORE TO GO
+1950        JMP RDL.RUBOUT
+1960 *--------------------------------
+1970 .4     CLC          ADD INCREMENT TO CURRENT LINE #
+1980        LDA CURLNO
+1990        ADC INCREMENT.VALUE
+2000        STA CURRENT.LINE.NUMBER
+2010        LDA CURLNO+1
+2020        ADC INCREMENT.VALUE+1
+2030        STA CURRENT.LINE.NUMBER+1
+2040        LDY #0
+2050        JSR CONVERT.LINE.NUMBER.BOTH   STORE AND PRINT NUMBER
+2060        TYA
+2070        TAX
+2080 *--------------------------------
+2090 .5     LDA #CHR.BLANK
+2100        JMP RDL.ADD.CHAR
+2110 *--------------------------------
+2120 *      READ LINE SUBROUTINE
+2130 *--------------------------------
+2140 READ.LINE
+2150        JSR GET.HORIZ.POSN
+2160        TAX          TEST FOR POSITION=0
+2170        BEQ RDL1     DON'T OUTPUT CRLF
+2180 RDL0   JSR CRLF
+2190 RDL1   LDA PROMPT.FLAG
+2200        JSR CHO      NULL, "I", OR "H"
+2210        LDA #':'     COLON PROMPT
+2220        JSR CHO
+2230        LDX #0       START NEW LINE
+2240        STX WBUF     CLEAR OUT "$" FROM COL. 1 (JUST IN CASE)
+2250        BIT AUTOLN.FLAG    SEE IF IN "AUTO" MODE
+2260        BMI TAB           ...YES
+2270 RDL3   JSR READ.KEY.WITH.CASE
+2280        BCS RDL.ESCAPE.2E
+2290        LDY WBUF     SEE IF IN $ OR " MODE
+2300        CPY #$A2     "?
+2310        BEQ .2
+2320        CPY #$A4     $?
+2330        BEQ .2
+2340        CMP TAB.CHAR <<ALLOW TAB.CHAR TO BE NON-CTRL
+2350        BEQ TAB
+2360        LDY #CHARS.FOR.READ.LINE.1
+2370        .HS 2C
+2380 .2     LDY #CHARS.FOR.READ.LINE.2
+2390        CMP #CHR.BLANK    SEE IF CONTROL CHAR
+2400        BCS RDL.ADD.CHAR     NO
+2410        STA CURRENT.CHAR
+2420        JMP SEARCH.CHAR.TABLES
+2430 *--------------------------------
+2440 RDL.ERR
+2450        JSR MON.BELL  ALARM IF NOT ONE OF THE ABOVE
+2460        JMP RDL3      AND IGNORE IT
+2470 *--------------------------------
+2480 RDL.OVERRIDE
+2490        JSR READ.KEY.WITH.CASE
+2500        JMP RDL.ADD.CHAR
+2510 *--------------------------------
+2520 RDL.RITARR
+2530        JSR GET.HORIZ.POSN
+2540        TAY
+2550        JSR IO.PICK.SCREEN
+2560 RDL.ADD.CHAR
+2570        JSR INSTALL.CHAR 
+2580        BCC RDL3     STILL ROOM FOR MORE
+2590 RDL.RUBOUT
+2600        LDA #CHR.BSLASH
+2610        JSR MON.COUT
+2620        JMP READ.LINE
+2630 *--------------------------------
+2640 RDL.BACKSPACE
+2650        LDA #$88
+2660        JSR MON.COUT PRINT BACKSPACE
+2670        TXA          SEE IF OVER PROMPT
+2680        BEQ RDL0     YES, START NEW LINE
+2690        DEX          NO, BACK UP BUFFER POINTER
+2700        JMP RDL3
+2710 *--------------------------------
+2720 RDL.PREFIX  LDY #QM.PREFIX-QM.
+2730             .HS 2C
+2740 RDL.CATALOG LDY #QM.CATALOG-QM.
+2750             .HS 2C
+2760 RDL.LIST    LDY #QM.LIST-QM.
+2770             .HS 2C
+2780 RDL.FIND    LDY #QM.FIND-QM.
+2790             .HS 2C
+2800 RDL.EDIT    LDY #QM.EDIT-QM.
+2810 *
+2820        CPX #0       ^C & ^E ONLY EFFECTIVE IN COL. 1
+2830        BNE RDL.ERR  ...ELSE ERRONEOUS
+2840 .1     LDA QM.,Y    SPELL OUT "EDIT " OR "CATALOG"
+2850        PHP          SAVE TERMINATION STATUS
+2860        JSR INSTALL.CHAR
+2870        INY
+2880        PLP          GET TERMINATION STATUS
+2890        BPL .1       ...NOT FINISHED YET
+2900        JMP RDL3
+2910 *--------------------------------
+2920 *      HANDLE ESCAPE EDITING
+2930 *--------------------------------
+2940 RDL.ESCAPE
+2950        JSR READ.KEY.WITH.CASE
+2960 RDL.ESCAPE.2E
+2970        JSR ELIMINATE.CASE
+2980        STA CURRENT.CHAR
+2990        LDY #CHARS.FOR.ESCAPE
+3000        JSR SEARCH.CHAR.TABLES
+3010        LDA CURRENT.CHAR
+3020        CMP #"L"     STAR DASH LINE?
+3030        BEQ RDL.EOL  ...YES, FINISH IT OFF
+3040        CMP #$A0     CHECK FOR ARROW KEYS (//E)
+3050        BCC RDL.ESCAPE     ...YES, STAY IN ESCAPE MODE
+3060        CMP #$C9     IJKM?
+3070        BCC RDL4     ...NO, LEAVE ESCAPE MODE
+3080        CMP #$CE
+3090        BCC RDL.ESCAPE      ...YES, STAY IN ESCAPE MODE
+3100        BCS RDL4     ...NO, LEAVE ESCAPE MODE
+3110 RDL.ESC.END
+3120        PLA
+3130        PLA
+3140 RDL4   JMP RDL3
+3150 *--------------------------------
+3160 RDL.EOL
+3170        JSR IO.CLREOL
+3180        LDA #CHR.RETURN
+3190        STA WBUF,X
+3200        JSR MY.COUT
+3210        LDY #0
+3220        STY MON.MODE
+3230        INY
+3240        LDA WBUF     GET FIRST CHAR
+3250        CMP #CHR.DOLLAR
+3260        BEQ FAKE.MONITOR
+3270        JMP RDL.STRIP.LINE
+3280 *--------------------------------
+3290 *      FAKE MONITOR
+3300 *--------------------------------
+3310 FMN1   CPX $FBC0    //C ID BYTE (X = 0 OR 1)
+3320        BCC .1       ...NOT //C  (//C = 0, OTHERS > 1)
+3330        DEY
+3340        BMI FMN3     ...NOT VALID COMMAND
+3350        CPY #$13
+3360        BCS FMN2
+3370 .1     JSR MON.TOSUB
+3380        LDY MON.YSAV
+3390 FAKE.MONITOR
+3400        JSR FMN5     INDIRECT TO MON.GETNUM
+3410        STY MON.YSAV
+3420        CMP #$C6     $8D EOR $B0 PLUS $89
+3430        BEQ FMN4     ...<RETURN>
+3440        LDY #22      # CMDS - 1
+3450 FMN2   CMP MON.CHRTBL,Y
+3460        BEQ FMN1     ...FOUND CMD IN TABLE
+3470        DEY          ...NEXT ENTRY
+3480        BPL FMN2     ...NEXT ENTRY
+3490 FMN3   JSR MON.BELL ...NOT IN TABLE
+3500        JMP READ.LINE
+3510 FMN4   LDA MON.MODE <RETURN> COMMAND
+3520        LDY #0
+3530        DEC MON.YSAV
+3540        JSR MON.BL1
+3550        JMP READ.LINE
+3560 FMN5   JMP ($FF74)  MON.GETNUM CALL
+3570 *--------------------------------
+3580 *      ESCAPE-L
+3590 *          COLUMN 0:  LOAD A FILE
+3600 *          COL. 1-N:  MAKE "*------" LINE
+3610 *--------------------------------
+3620 ESCAPE.L
+3630        TXA
+3640        BEQ .3       "LOAD ...."
+3650 *---GENERATE STAR-DASH LINE------
+3660        LDA #CHR.STAR
+3670 .1     JSR INSTALL.CHAR
+3680        LDA USER.COM.DELIM
+3690        CPX #38
+3700        BCC .1
+3710 .2     RTS
+3720 *---GENERATE LOAD COMMAND--------
+3730 .3     JSR IO.HTABX      HTAB TO FIRST COLUMN
+3740        LDY #QBLOADB " LOAD "
+3750        JSR QT.OUT
+3760        LDX #22
+3770        JSR IO.HTABX
+3780        JSR GET.DOS.CMD.OFF.SCRN
+3790        PLA          POP RETURN ADDRESS
+3800        PLA
+3810        JMP RDL.EOL  SUBMIT COMMAND
+3820 *--------------------------------
+3830 *   ESC-S   AUTO SAVE LINE
+3840 *--------------------------------
+3850 ESCAPE.S
+3860        TXA
+3870        BNE .4       ...NOT IN COLUMN 1
+3880        JSR SETUP.TEXT.POINTERS
+3890        LDX #10      MUST APPEAR IN FIRST 10 LINES
+3900 .1     LDY #3       POINT TO FIRST TEXT CHAR OF LINE
+3910        LDA (SRCP),Y
+3920        JSR CHECK.COMMENT.CHAR
+3930        BEQ .5
+3940 .2     DEX          PAST 10TH LINE?
+3950        BMI .4       ...YES, LOOK NO FURTHER
+3960        LDY #0       POINT TO LENGTH
+3970        LDA (SRCP),Y
+3980        CLC
+3990        ADC SRCP
+4000        STA SRCP
+4010        BCC .3
+4020        INC SRCP+1
+4030 .3     JSR CMP.SRCP.ENDP   PAST END OF PROGRAM?
+4040        BCC .1              ...NO, KEEP LOOKING
+4050 .4     RTS
+4060 .5     INY
+4070        LDA (SRCP),Y
+4080        BEQ .2       ...END OF LINE
+4090        CMP #'S'
+4100        BNE .5
+4110        JSR LIST.CURRENT.LINE
+4120 *--------------------------------
+4130 GET.DOS.CMD.OFF.SCRN
+4140        JSR IO.CLREOL
+4150        LDY #0       NOW PICK 0...39 OFF SCREEN
+4160        LDX #0       BUT NO BLANKS
+4170 .1     JSR IO.PICK.SCREEN
+4180        STA WBUF,X   STORE IN BUFFER
+4190        INY
+4200        CMP #" "     ELIMINATE BLANKS
+4210        BEQ .2       ...BLANK
+4220        INX
+4230 .2     CPY #39
+4240        BCC .1
+4250 .3     DEY
+4260        JSR IO.PICK.SCREEN
+4270        CMP #" "
+4280        BEQ .3
+4290        INY
+4300        TYA
+4310        JMP IO.HTAB  POSITION AFTER LAST NON-BLANK
+4320 *--------------------------------
+4330 *      INSTALL CHARACTER IN INPUT BUFFER
+4340 *--------------------------------
+4350 INSTALL.CHAR
+4360        ORA #$80     ASSURE SIGN BIT ON
+4370        STA WBUF,X   STORE IN INPUT BUFFER
+4380        CMP #$A0     CONTROL CHAR?
+4390        BCS .1       ...NO
+4400        AND #$3F     ...YES, DISPLAY AS INVERSE
+4410 .1     JSR IO.COUT  ECHO ON SCREEN
+4420        CPX #WBUF.MAX SEE IF END OF BUFFER
+4430        BCS .2       ...YES
+4440        INX
+4450        RTS
+4460 .2     JSR MON.BELL
+4470        SEC
+4480        RTS
+4490 *--------------------------------
+4500 *      STRIP SIGN BITS OFF ALL BYTES
+4510 *      AND CHANGE <CR> TO <EOL>
+4520 *--------------------------------
+4530 RDL.STRIP.LINE
+4540        LDY #$FF     LOOP TO CLEAR HIGH BITS
+4550 .1     INY
+4560        LDA WBUF,Y
+4570        AND #$7F     STRIP OFF BIT
+4580        CMP #$0D     WAS IT THE END?
+4590        BNE .2       NOT YET
+4600        LDA #0       YES, SUBSTITUTE <EOL> FOR <CR>
+4610 .2     STA WBUF,Y
+4620        BNE .1       UNTIL <EOL>
+4630        TAX          CLEAR X-REG
+4640        RTS
+4650 *--------------------------------
+4660 ESCAPE.DOT
+4670        TXA
+4680        BNE .5       NOT IN COLUMN 1, IGNORE IT
+4690        JSR GET.HORIZ.POSN  FIND CURSOR POSITION
+4700        TAY
+4710 .1     JSR IO.PICK.SCREEN
+4720        AND #$7F
+4730        JSR CHECK.DIGIT
+4740        BCC .2       NOT A DIGIT
+4750        STA WBUF+4,X
+4760        INX
+4770        INY
+4780        BNE .1       ...ALWAYS
+4790 .2     TXA
+4800        BEQ .3       ...NO DIGITS
+4810        LDA #4
+4820        STA CHAR.PNTR
+4830        STA WBUF+4,X
+4840        LDX #CURLNO-A0L
+4850        JSR SCAN.1.DECIMAL.NUMBER
+4860 .3     LDY #4
+4870        LDX #0
+4880 .4     LDA LDC,Y
+4890        JSR INSTALL.CHAR
+4900        DEY
+4910        BPL .4
+4920        STA CURRENT.CHAR  at end, current.char = comma
+4930        JSR IO.CLREOP
+4940 .5     RTS
+4950 *--------------------------------
+4960 LDC    .AS /,.SIL/
+4970 *--------------------------------
+4980 QM.
+4990 QM.EDIT    .AT /EDIT /
+5000 QM.CATALOG .AT /CATALOG/
+5010 QM.PREFIX  .AT /PREFIX/
+5020 QM.LIST    .AT /LIST /
+5030 QM.FIND    .AT /FIND /
+5040 *--------------------------------------

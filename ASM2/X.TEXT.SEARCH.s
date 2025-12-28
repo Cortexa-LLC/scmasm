@@ -1,0 +1,286 @@
+
+1000 *SAVE X.TEXT.SEARCH.
+1010 *--------------------------------
+1020 *      SEARCH TEXT BUFFER FOR LINE
+1030 *
+1040 *      LINE NUMBER TO BE FOUND IS AT 0,X AND 1,X
+1050 *
+1060 *      IF FOUND, RETURN CARRY SET
+1070 *                (LINE.START) = ADDRESS OF LINE
+1080 *                (LINE.END  ) = ADDRESS OF NEXT LINE
+1090 *
+1100 *      IF NOT FOUND, RETURN CARRY CLEAR
+1110 *                (LINE.START) = ADDRESS OF NEXT LINE
+1120 *                (LINE.END  ) = ADDRESS OF NEXT LINE
+1130 *
+1140 *--------------------------------
+1150 SERTXT LDA PP       START AT BEGINNING OF TEXT BUFFER
+1160        STA LINE.END
+1170        LDA PP+1
+1180        STA LINE.END+1
+1190 SERNXT LDA LINE.END+1      CONTINUE SEARCH WITH NEXT LINE
+1200        STA LINE.START+1
+1210        LDA LINE.END
+1220        STA LINE.START
+1230        CMP HI.MEM
+1240        LDA LINE.START+1      SEE IF AT END YET
+1250        SBC HI.MEM+1
+1260        BCS .3       YES, DID NOT FIND
+1270        LDY #0       POINT AT LINE LENGTH
+1280        LDA (LINE.START),Y  GET LINE LENGTH
+1290        ADC LINE.END      POINT TO NEXT LINE
+1300        STA LINE.END
+1310        BCC .1
+1320        INC LINE.END+1
+1330 .1     INY          POINT AT LINE NUMBER
+1340        LDA (LINE.START),Y  COMPARE TO DESRIRED LINE NUMBER
+1350        CMP 0,X
+1360        INY
+1370        LDA (LINE.START),Y
+1380        SBC 1,X
+1390        BCC SERNXT   NOT THERE YET
+1400        BNE .2       PASSED IT UP
+1410        DEY          CHECK LOW BYTE AGAIN
+1420        LDA (LINE.START),Y
+1430        CMP 0,X
+1440        BEQ .4       FOUND IT!
+1450 .2     LDA LINE.START      PASSED IT UP
+1460        STA LINE.END      MAKE BOTH POINT AT SAME LINE
+1470        LDA LINE.START+1
+1480        STA LINE.END+1
+1490 .3     CLC          RETURN CARRY CLEAR
+1500 .4     RTS
+1510  .PG
+1520 *--------------------------------
+1530 *      DELETE LINES
+1540 *--------------------------------
+1550 DELETE
+1560        JSR GNNB     GET NEXT NON-BLANK CHAR
+1570        CMP #'/'
+1580        BEQ .1       ...PATHNAME
+1590        JSR CHECK.LETTER
+1600        BCC .2       ...NOT LETTER, PROBABLY LINES
+1610 .1     JMP PASS.CMD.TO.PRODOS
+1620 .2     JSR BACKUP.CHAR.PNTR
+1630        JSR PARSE.LINE.RANGE
+1640        BCS SYNX.3   ...NO NUMBERS, SYNTAX ERROR
+1650 DELETE.LINES
+1660        LDX #-1
+1670        SEC
+1680 .2     LDA SRCP+1,X SEE IF RANGE EMPTY OR CROSSED
+1690        STA LINE.START+1,X
+1700        LDA ENDP+1,X
+1710        STA A4L+1,X
+1720        SBC LINE.START+1,X
+1730        STA MOVE.DISTANCE+1,X
+1740        INX
+1750        BEQ .2
+1760        TAX          TEST HI-BYTE OF MOVE.DISTANCE
+1770        BPL MOVE.TEXT.UP  ...POSITIVE, RANGE GOOD
+1780 SYNX.3 JMP SYNX
+1790 *--------------------------------
+1800 *      MOVE TEXT FROM  THRU 
+1810 *      UP  BYTES TO 
+1820 *--------------------------------
+1830 MOVE.TEXT.UP
+1840        JSR COMPUTE.BLOCK.SIZE
+1850        CLC
+1860        LDA PP
+1870        ADC MOVE.DISTANCE
+1880        STA PP
+1890        LDA PP+1
+1900        ADC MOVE.DISTANCE+1
+1910        STA PP+1
+1920        LDY #0
+1930        BEQ .3       ...ALWAYS
+1940 *---MOVE A WHOLE BLOCK-----------
+1950 .1     LDA (LINE.START),Y  MOVE BYTES 255 THRU 1 IN BLOCK
+1960        STA (A4L),Y
+1970 .2     DEY
+1980        BNE .1
+1990        LDA (LINE.START),Y  MOVE LOWEST BYTE IN BLOCK
+2000        STA (A4L),Y
+2010 .3     DEC LINE.START+1      PRIOR BLOCK
+2020        DEC A4H
+2030        DEX          ANY MORE BLOCKS?
+2040        BNE .2       YES
+2050 *---MOVE SHORT BLOCK IF ANY------
+2060        LDX BLKSIZ   PARTIAL BLOCK SIZE
+2070        BEQ .5       NONE LEFT
+2080 .4     DEY
+2090        LDA (LINE.START),Y
+2100        STA (A4L),Y
+2110        DEX
+2120        BNE .4
+2130 .5     RTS
+2140        .PG
+2150 *--------------------------------
+2160 *      COPY L1,L2,L3
+2170 *          L1 = FIRST LINE OF RANGE TO COPY
+2180 *          L2 = LAST LINE OF RANGE TO COPY
+2190 *          L3 = LINE NUMBER BEFORE WHICH TO INSERT
+2200 *                   THE COPIED LINES
+2210 *--------------------------------
+2220 ERR1   JMP SYNX
+2230 ERR2   .EQ ERR1
+2240 ERR3   JMP MFER
+2250 ERR4   .EQ ERR1
+2260 *--------------------------------
+2270 COPY
+2280        JSR PARSE.LINE.RANGE
+2290        JSR GNNB     look for a comma
+2300        CMP #','
+2310        BNE ERR1     ...no comma
+2320        SEC          SAVE POINTER AND COMPUTE LENGTH
+2330        LDA SRCP     REALLY -(LENGTH)
+2340        SBC ENDP
+2350        STA MOVE.DISTANCE
+2360        LDA SRCP+1
+2370        SBC ENDP+1
+2380        STA MOVE.DISTANCE+1
+2390        BPL ERR2     RANGE BACKWARD OR EMPTY
+2400 *--------------------------------
+2410        CLC
+2420        LDA PP       COMPUTE NEW PP POINTER
+2430        ADC MOVE.DISTANCE
+2440        STA A4L
+2450        LDA PP+1
+2460        ADC MOVE.DISTANCE+1
+2470        STA A4H
+2480 *--------------------------------
+2490        LDA A4L      SEE IF ROOM FOR THIS
+2500        CMP LO.MEM
+2510        LDA A4L+1
+2520        SBC LO.MEM+1
+2530        BCC ERR3     MEM FULL ERR
+2540 *---Get Target Line Number-------
+2550        JSR GNNB     pick up first digit of target line number
+2560        JSR SCAN.LINE.NUMBER   (or it might be ".")
+2570        BCS ERR1     ...not a line number of "."
+2580        LDA 0,X      copy line number to A0L,H
+2590        STA A0L
+2600        LDA 1,X
+2610        STA A0H
+2620 *---Verify valid target line-----
+2630        LDA SRCP     BE SURE NOT INSIDE SOURCE BLOCK
+2640        CMP LINE.START
+2650        LDA SRCP+1
+2660        SBC LINE.START+1
+2670        BCS .1       BELOW SOURCE BLOCK
+2680        LDA LINE.START
+2690        CMP ENDP
+2700        LDA LINE.START+1
+2710        SBC ENDP+1
+2720        BCC ERR4     INSIDE SOURCE BLOCK
+2730 *--------------------------------
+2740 *   TARGET IS ABOVE SOURCE BLOCK, SO WE HAVE TO
+2750 *   ADJUST SOURCE BLOCK POINTERS.
+2760 *--------------------------------
+2770        CLC
+2780        LDA SRCP
+2790        ADC MOVE.DISTANCE
+2800        STA SRCP
+2810        LDA SRCP+1
+2820        ADC MOVE.DISTANCE+1
+2830        STA SRCP+1
+2840        CLC
+2850        LDA ENDP
+2860        ADC MOVE.DISTANCE
+2870        STA ENDP
+2880        LDA ENDP+1
+2890        ADC MOVE.DISTANCE+1
+2900        STA ENDP+1
+2910 *--------------------------------
+2920 .1     JSR MOVE.TEXT.DOWN  MAKE THE HOLE
+2930 *--------------------------------
+2940        LDA SRCP     SAVE SRCP AT A1
+2950        STA A1L      (POINTS TO BLOCK TO BE COPIED)
+2960        LDA SRCP+1
+2970        STA A1H
+2980 .2     CLC          ADD (Y) TO A4
+2990        TYA
+3000        ADC A4L      POINTS TO BEGINNING OF NEXT 
+3010        STA A4L      LINE IN HOLE
+3020        BCC .3
+3030        INC A4H
+3040 .3     LDY #0
+3050        LDA (A1L),Y  COPY LINE LENGTH
+3060        STA (A4L),Y
+3070        INY          INSERT LINE #
+3080        LDA A0L      OF TARGET LINE
+3090        STA (A4L),Y
+3100        INY          INSERT LINE #
+3110        LDA A0H      OF TARGET LINE
+3120        STA (A4L),Y
+3130 .4     INY          COPY REST OF LINE
+3140        LDA (A1L),Y
+3150        STA (A4L),Y
+3160        BNE .4       UNTIL  TOKEN
+3170        INY
+3180        CLC
+3190        TYA
+3200        ADC A1L      POINT TO NEXT SOURCE LINE
+3210        STA A1L
+3220        BCC .5
+3230        INC A1H
+3240 .5     CMP ENDP
+3250        LDA A1H
+3260        SBC ENDP+1
+3270        BCC .2
+3280        LDY #QDELOR
+3290        JSR YES.OR.NO
+3300        BNE .6
+3310        JSR DELETE.LINES
+3320 .6     RTS
+3330 *--------------------------------
+3340        .PG
+3350 *--------------------------------
+3360 *      MOVE TEXT FROM  THRU 
+3370 *      DOWN - BYTES TO 
+3380 *--------------------------------
+3390 MOVE.TEXT.DOWN
+3400        JSR COMPUTE.BLOCK.SIZE
+3410        LDA PP
+3420        STA A2L
+3430        LDA PP+1
+3440        STA A2H
+3450        LDA A4L
+3460        STA PP
+3470        LDA A4H
+3480        STA PP+1
+3490        LDY #0
+3500        BEQ .2       ...ALWAYS
+3510 .1     LDA (A2L),Y  YES, MOVE 256 BYTES
+3520        STA (A4L),Y
+3530        INY
+3540        BNE .1
+3550        INC A2H      POINT AT NEXT BLOCK
+3560        INC A4H
+3570 .2     DEX          ANY WHOLE BLOCKS LEFT?
+3580        BNE .1       YES
+3590 *---MOVE PARTIAL BLOCK-----------
+3600        LDX BLKSIZ   SIZE OF PARTIAL BLOCK
+3610        BEQ .4       EMPTY
+3620 .3     LDA (A2L),Y
+3630        STA (A4L),Y
+3640        INY
+3650        DEX
+3660        BNE .3
+3670 .4     RTS
+3680 *--------------------------------
+3690 *      COMPUTE SIZE OF TEXT BLOCK
+3700 *      FROM  TO 
+3710 *
+3720 *      RETURN # WHOLE BLOCKS OF 256 BYTES +1 IN X
+3730 *      RETURN # BYTES IN PARTIAL BLOCK IN 
+3740 *--------------------------------
+3750 COMPUTE.BLOCK.SIZE
+3760        SEC          COMPUTE # OF BYTES TO BE MOVED
+3770        LDA LINE.START      CURRENT TOP POINTER
+3780        SBC PP       CURRENT BOTTOM POINTER
+3790        STA BLKSIZ   SAVE PARTIAL PAGE AMOUNT
+3800        LDA LINE.START+1
+3810        SBC PP+1
+3820        TAX          # OF WHOLE PAGES IN X
+3830        INX
+3840        RTS

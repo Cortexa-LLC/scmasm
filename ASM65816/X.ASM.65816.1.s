@@ -1,0 +1,317 @@
+
+1000 *SAVE X.ASM.65816.1
+1010 *--------------------------------
+1020 ASM.INIT
+1030        LDA #0       MASK FOR 6502
+1040        STA LEVEL.MASK
+1050        LDA #15      MARGIN FOR 6502
+1060        STA EMIT.MARGIN
+1070        RTS
+1080 *--------------------------------
+1090 ASM.LINE
+1100        LDA SEARCH.KEY   1ST LETTER
+1110        CMP #'A'
+1120        BCC .5       ...NOT A LETTER, SO BADOP
+1130        CMP #'Z'+1
+1140        BCS .5       ...NOT A LETTER, SO BADOP
+1150        AND #$1F     MAKE 01...1A
+1160        TAX
+1170        LDA FIRST.LETTER.TABLE-1,X
+1180        BNE .8       ...UNUSED LETTER
+1190 .5     JMP BADOPERR
+1200 *---BUILD OPTBL.PNTR INTO TABLE--------
+1210 .8     ADC #OPCODE.TABLE     CARRY CLEAR ALREADY
+1220        STA OPTBL.PNTR
+1230        LDY /OPCODE.TABLE
+1240        BCC .1
+1250        INY
+1260 .1     CPX #'R'-$40  WHICH HALF OF TABLE?
+1270        BCC .2       ...FIRST HALF
+1280        INY          ...SECOND HALF
+1290 .2     CLC          INITIAL SEARCH
+1300 .3     JSR SEARCH.COMPRESSED.TABLE
+1310        BCC .5       ...NOT FOUND
+1320 *---FOUND IT!--------------------
+1330        LDA (OPTBL.PNTR),Y
+1340        STA OPBASE
+1350        INY
+1360        LDA (OPTBL.PNTR),Y
+1370        AND #$E1     ISOLATE LEVEL BITS
+1380        BEQ .7       ...PLAIN 6502 LEVEL
+1390        AND LEVEL.MASK
+1400        BNE .7   ...ALLOWS 'STP' FOR BOTH 65816 & SWEET-16
+1410        SEC          CONTINUE SEARCH
+1420        BCS .3       ...ALWAYS
+1430 *---BRANCH TO PROCESS OPCODE-----
+1440 .7     LDA (OPTBL.PNTR),Y
+1450        AND #$1E
+1460        TAY
+1470        LDA OP.MODE+1,Y
+1480        PHA
+1490        LDA OP.MODE,Y
+1500        PHA
+1510        RTS
+1520 *--------------------------------
+1530        .MA MODE
+1540 O..]1  .EQ *-OP.MODE
+1550        .DA OP.]1-1
+1560        .EM
+1570 *--------------------------------
+1580 OP.MODE
+1590        >MODE SNGL       0 -- SINGLE BYTE OPCODES
+1600        >MODE COPS       2 -- LDA GROUP
+1610        >MODE SHIFTS     4 -- ASL GROUP
+1620        >MODE REL16      6 -- BRL & PER
+1630        >MODE REL8       8 -- RELATIVE BRANCHES
+1640        >MODE BITS       A -- BIT GROUP
+1650        >MODE MOVES      C -- MVP & MVN
+1660        >MODE JUMPS      E -- JUMP GROUP
+1670        >MODE ROCKB     10 -- ROCKWELL BIT OPS
+1680        >MODE ROCKC     12 -- ROCKWELL BIT OPS
+1690        >MODE XN        14 -- SWEET 16 REGISTER OPS
+1700        >MODE POP       16 -- SWEET 16 POP & POPD
+1710        >MODE SET       18 -- SWEET 16 SET
+1720        >MODE CRS       1A -- COP, REP, SEP
+1730 *--------------------------------
+1740 OP.SNGL
+1750 EMIT.OPBASE
+1760        LDA OPBASE
+1770        JMP EMIT
+1780 *--------------------------------
+1790 OP.CRS JSR GNNB
+1800        CMP #'#'
+1810        BNE ERBA.E2
+1820        JSR EXP1
+1830        JMP EMIT.OP.AND.EXP.BYTE
+1840 ERBA.E2
+1850        JMP ERBA.EMIT.TWO
+1860 *--------------------------------
+1870 OP.COPS
+1880        JSR GENERAL.OPERAND
+1890        JSR SEE.IF.MODE.LEGAL.AT.LEVEL
+1900        LDA MODE.BYTE     ALL INDIRECT MODES   <<<12-16-85>>>
+1910        AND #$04          REQUIRE ZP VALUE     <<<12-16-85>>>
+1920        BEQ .1            ...NOT INDIRECT      <<<12-16-85>>>
+1930        CPY #14
+1940        BCC .4       ...MODES 0...13
+1950        DEC ADDR.LENGTH   SHORTEN >(ZP) AND >(ZP),Y
+1960 .4     JSR TEST.EXP.VALUE.ZP
+1970        BNE ERBA.E2       ...MUST BE DIRECT VALUE
+1980 .1     LDA ADDR.MODE.BITS.CLASS.1,Y
+1990        BPL .2       VALID MODE
+2000        INC ADDR.LENGTH   ...DIRECT,Y NOT VALID
+2010        LDA ADDR.MODE.BITS.CLASS.1+1,Y
+2020 .2     EOR OPBASE
+2030        CMP #$89     STA IMMED?
+2040        BEQ ERBA.E2       ...YES, NO SUCH ANIMAL
+2050 * FALL INTO EMIT.OP.AND.VALUE ***
+2060 *--------------------------------
+2070 EMIT.OP.AND.VALUE
+2080        JSR EMIT
+2090 EMIT.VALUE
+2100        JSR EMIT.EXP.BYTE
+2110        DEC ADDR.LENGTH
+2120        BEQ .2
+2130        LDA EXP.VALUE+1
+2140        JSR EMIT
+2150        DEC ADDR.LENGTH
+2160        BEQ .2
+2170        LDA EXP.VALUE+2
+2180        JSR EMIT
+2190        DEC ADDR.LENGTH
+2200        BEQ .2
+2210        LDA EXP.VALUE+3
+2220        JSR EMIT
+2230 .2     RTS
+2240 *--------------------------------
+2250 OP.BITS
+2260        JSR GENERAL.OPERAND
+2270        JSR SEE.IF.MODE.LEGAL.AT.LEVEL
+2280        CPY #7       ONLY MODES 0...6 LEGAL
+2290        BCS .2       ...NOT VALID MODE
+2300        LDX OPBASE
+2310        BNE .0       ...NOT BIT OPCODE
+2320        LDA LEVEL.MASK
+2330        AND #$20
+2340        BNE .0       ...AT LEAST 65C02
+2350        LDA #$60     ONLY ZP AND ABS LEGAL
+2360        BNE .7       ...ALWAYS
+2370 .0     LDA CLASS.5.LEGAL.MODES,X
+2380 .7     AND CLASS.5.MODE.MASKS,Y
+2390        BNE .4       ...LEGAL
+2400        LDA PASS
+2410        BEQ .1       ...IN PASS 1
+2420        JSR TEST.EXP.VALUE.ZP
+2430        BNE .2       ...TOO BIG FOR ZP
+2440 .1     DEY          CHANGE ABS TO ZP MODE
+2450        BMI .2       ...WASN'T ABS
+2460        TYA
+2470        LSR
+2480        BCC .2       ...WASN'T ABS
+2490        LDA CLASS.5.LEGAL.MODES,X
+2500        AND CLASS.5.MODE.MASKS,Y
+2510        BNE .3       ...LEGAL AFTERALL
+2520 .2     JMP ERBA.EMIT.TWO    INVALID ADDRESS MODE
+2530 .3     DEC ADDR.LENGTH
+2540 *---FORM OPCODE------------------
+2550 .4     LDA ADDR.MODE.BITS.CLASS.5,Y
+2560        EOR CLASS.5.OPS,X
+2570        LDY #$89
+2580        CMP #$20
+2590        BEQ .5
+2600        LDY #$9C
+2610        CMP #$6C
+2620        BEQ .5
+2630        LDY #$9E
+2640        CMP #$7C
+2650        BNE .6
+2660 .5     TYA
+2670 .6     JMP EMIT.OP.AND.VALUE
+2680 *--------------------------------
+2690 OP.SHIFTS
+2700        JSR GNC      CHECK FOR ACCUMULATOR MODE
+2710        BNE .2       NOT ACCUM MODE
+2720        JSR GNC
+2730        BNE .2       NOT ACCUM MODE
+2740 *---ACCUMULATOR MODE-------------
+2750        LDA OPBASE
+2760        EOR #$08     MAKE ACCUM MODE OPCODE
+2770        BPL .1       NOT INC OR DEC
+2780        PHA
+2790        LDA LEVEL.MASK
+2800        AND #$20     ONLY IN 65C02 AND ABOVE
+2810        BEQ .5
+2820        PLA
+2830        EOR #$F0     CHANGE EA-->1A, CA-->3A
+2840 .1     JMP EMIT
+2850 *---MODES WITH OPERAND FIELD-----
+2860 .2     DEC CHAR.PNTR
+2870        JSR GENERAL.OPERAND
+2880        JSR SEE.IF.MODE.LEGAL.AT.LEVEL
+2890        CPY #5       ONLY MODES 1...4 LEGAL
+2900        BCS .5
+2910        TYA
+2920        BEQ .5       ...NO IMMEDIATE MODE ALLOWED
+2930        LDA ADDR.MODE.BITS.CLASS.1,Y
+2940        EOR OPBASE
+2950        JMP EMIT.OP.AND.VALUE
+2960 .5     JMP ERBA.EMIT.TWO     INVALID ADDRESS MODE
+2970 *--------------------------------
+2980 OP.REL8
+2990   .DO SWEET.16
+3000        LDA OPBASE   CHECK FOR 'BNM1' SWEET-16 OP
+3010        CMP #$09
+3020        BNE .1       ...NOT 'BNM1'
+3030        JSR GNC      CHECK FOR '1'
+3040        CMP #'1'
+3050        BNE BADOPERR ...NO, SO BAD OP
+3060   .FIN
+3070 .1     JSR EXPR
+3080        LDA OPBASE
+3090 OP.REL8.A
+3100        JSR EMIT     EMIT OPCODE
+3110        LDA EXP.UNDEF
+3120        BMI GOEMIT   ...UNDEFINED
+3130        LDY EXP.VALUE+1
+3140        CLC          COMPUTE RELATIVE OFFSET
+3150        LDA EXP.VALUE
+3160        SBC ORGN
+3170        STA EXP.VALUE
+3180        BPL .2
+3190        INY
+3200 .2     TYA
+3210        SBC ORGN+1
+3220        BNE ERR.RANGE.EMIT.ONE
+3230 EMIT.EXP.BYTE
+3240        LDA EXP.VALUE
+3250 GOEMIT JMP EMIT
+3260 *--------------------------------
+3270 BADOPERR
+3280        LDA #ERR.BAD.OPCODE
+3290        JMP ASM.ERROR
+3300 *--------------------------------
+3310 *      BRL & PER, 16-bit relative
+3320 *--------------------------------
+3330 OP.REL16
+3340        JSR EXPR     Get value of expression
+3350        JSR EMIT.OPBASE   Emit the opcode, bumping origin once
+3360        LDA EXP.UNDEF     If undefined, say so
+3370        BMI .3            (If we didn't, might be RANGE ERR)
+3380        CLC          ADD 2 MORE TO ORIGIN
+3390        LDY ORGN+2
+3400        LDA ORGN
+3410        ADC #2
+3420        STA EXP.VALUE+3   (TEMP)
+3430        LDA ORGN+1
+3440        ADC #0
+3450        BCC .2
+3460        INY               BANK BYTE
+3470 .2     CPY EXP.VALUE+2   IN SAME BANK AS TARGET?
+3480        BNE ERR.RANGE.EMIT.TWO  ...NO, ERR RANGE
+3490        STA EXP.VALUE+2   YES, SAVE IN ANOTHER TEMP
+3500        LDA EXP.VALUE     TARGET-ORGN+3
+3510        SBC EXP.VALUE+3
+3520        STA EXP.VALUE
+3530        LDA EXP.VALUE+1
+3540        SBC EXP.VALUE+2
+3550        STA EXP.VALUE+1
+3560 .3     LDA #2
+3570        STA ADDR.LENGTH
+3580        JMP EMIT.VALUE
+3590 *--------------------------------
+3600 ERR.RANGE.EMIT.TWO
+3610        JSR EMIT.ZERO
+3620 ERR.RANGE.EMIT.ONE
+3630        JSR EMIT.ZERO
+3640 RAER   LDA #ERR.RANGE
+3650        JMP ASM.ERROR
+3660 *--------------------------------
+3670 OP.MOVES
+3680        JSR EMIT.OPBASE
+3690        JSR EXPR     GET SOURCE BANK
+3700        LDA EXP.VALUE+2
+3710        PHA
+3720        JSR GNC
+3730        CMP #','     MUST HAVE COMMA HERE
+3740        BNE .1       ...ILLEGAL
+3750        JSR EXP1     GET DESTINATION BANK
+3760        LDA EXP.VALUE+2
+3770        JSR EMIT
+3780        PLA
+3790        JMP EMIT
+3799 .1     JMP ERBA.EMIT.TWO
+3800 *--------------------------------
+3810 OP.JUMPS
+3820        JSR GENERAL.OPERAND
+3830        LDA LEGAL.JUMP.MODES,Y
+3840        BMI .4       ...ILLEGAL
+3850        ORA OPBASE
+3860        TAY
+3870        LDA LEVEL.MASK
+3880        BMI .1       65816, ALLOW ALL MODES
+3890        CPY #5       DISALLOW JML, JSL, AND PEA
+3900        BCS .4       ...ONE OF THOSE
+3910        CPY #1       DISALLOW JMP LONG
+3920        BEQ .4
+3930        AND #$20     SEE IF 65C02
+3940        BNE .1       ...YES
+3950        CPY #3       ...NO, DISALLOW JMP (ABS,X)
+3960        BEQ .4       ...THAT'S WHAT IT IS...
+3970 .1     LDA JUMP.OPCODES,Y
+3980        BEQ .4       ...ILLEGAL
+3990        LDY #2       ASSUME TWO BYTE ADDRESS
+4000        CMP #$5C     CHECK FOR "JMP LONG"
+4010        BEQ .2       ...YES, 3 BYTES OF ADDRESS
+4020        CMP #$22     CHECK FOR "JSL"
+4030        BNE .3       ...NO, ONLY 2 BYTES OF ADDRESS
+4040 .2     INY          3 BYTE ADDRESS
+4050 .3     STY ADDR.LENGTH
+4060        JMP EMIT.OP.AND.VALUE
+4066 .4     JMP ERBA.EMIT.TWO
+4070 *--------------------------------
+4080 TEST.EXP.VALUE.ZP
+4090        LDA EXP.VALUE+1
+4100        ORA EXP.VALUE+2
+4110        ORA EXP.VALUE+3
+4120        RTS
+4130 *--------------------------------

@@ -1,0 +1,25 @@
+
+1000  .LIF
+1010        .TI 76,S-C MACRO ASSEMBLER (ProDOS) 3.0               June 22, 1988     
+1020 *SAVE X.ACF
+1030 *--------------------------------
+1040 ROCKWELL   .EQ 1    0 = LEAVE OUT ROCKWELL OPTION
+1050 SWEET.16   .EQ 1    0 = LEAVE OUT SWEET-16 OPTION
+1060 AUXMEM     .EQ 1    1 = SYMBOLS IN AUXILIARY MEMORY
+1070 *--------------------------------
+1080        .OR $6600
+1090        .TF SCASM.65816
+1100 *--------------------------------
+1110        .PH $D400
+1120 ZZ.START
+1130        .INB X.DATA			Must be EXACT copy of ASM2/X.DATA
+1140        .INB X.ASM.LINKAGE
+1150        .INB X.ASM.65816.1
+1160        .INB X.ASM.65816.2
+1170        .INB X.TABLES.65816
+1180        .INB X.OP.DIRECTIVE
+1190 WASTED .EQ ZZ.START+$0C00-*
+1200        .BS WASTED
+1210 ZZ.END
+1220 ZZ.ASMSIZE .EQ *-ZZ.START
+1230        .EP

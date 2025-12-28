@@ -1,0 +1,114 @@
+
+1000 *SAVE X.SEARCH.COMMA
+1010 *--------------------------------
+1020 *      SEARCH COMMAND TABLE
+1030 *--------------------------------
+1040 SEARCH.COMMAND.TABLE
+1050        LDX #-1      COMMAND STRING INDEX
+1060 .1     LDY #0       BUFFER INDEX
+1070        STY CHAR.PNTR
+1080 .2     INX          NEXT POSITION IN CMD.TBL
+1090        JSR GNC.UC   NEXT CHARACTER OF COMMAND
+1100        BCS .7       ...END OF LINE
+1110        JSR CHECK.LETTER
+1120        BCC .6       ...NOT A LETTER
+1130        LDA CMD.TBL,X  NEXT CHAR OF COMMAND NAME
+1140        BEQ PASS.CMD.TO.PRODOS     ...END OF TABLE
+1150        EOR CURRENT.CHAR
+1160        BEQ .2       ...CORRECT CHARACTER
+1170        ASL          SHIFT OUT END.OF.NAME FLAG
+1180        BNE .5       ...REALLY DIFFERENT
+1190 *---GO TO PROCESS COMMAND--------
+1200 .3     LDA CMD.TBL+2,X
+1210        PHA
+1220        LDA CMD.TBL+1,X
+1230        PHA
+1240        LDX #0
+1250        RTS
+1260 *---SCAN TO NEXT TABLE ENTRY-----
+1270 .5     INX
+1280        LDA CMD.TBL-1,X
+1290        BPL .5
+1300        INX          SKIP OVER ADDRESS
+1310        BNE .1       ...ALWAYS
+1320 *---ALL LETTERS MATCH-------------
+1330 .6     DEY          BACK OFF 
+1340        STY CHAR.PNTR
+1350 .7     CPY #3       AT LEAST THREE LETTERS?
+1360        BCC PASS.CMD.TO.PRODOS     ...NO, SPELLED WRONG
+1370 .9     LDA CMD.TBL,X
+1380        BMI .3       ...AT END OF COMMAND NAME
+1390        INX
+1400        BNE .9       ...ALWAYS
+1410 *---NOT FOUND IN TABLE------------
+1420 PASS.CMD.TO.PRODOS
+1430   .DO 0    NO LONGER NECESSARY, BECAUSE 00=8D IN SCI
+1440        LDX #-1      APPEND A  FOR PRODOS
+1450 .1     INX
+1460        LDA WBUF,X   LOOK FOR TERMINATING 00
+1470        BNE .1       ...NOT YET
+1480        LDA #$8D
+1490        STA WBUF,X
+1500   .FIN     EFFECTIVE 10-23-86
+1510        JSR SCI.COMMAND   GIVE ProDOS A SHOT AT IT
+1520        BCC .2       ProDOS liked it!
+1530        JMP PRODOS.ERROR   ...not acceptable, explain why
+1540 .2     RTS
+1550 *--------------------------------
+1560 *      COMMAND STRINGS
+1570 *--------------------------------
+1580        .MA CTBL
+1590        .AT /]1/
+1600        .DA ]1-1
+1610        .EM
+1620 *--------------------------------
+1630 CMD.TBL
+1640        >CTBL ASM
+1650        >CTBL AUTO
+1660        >CTBL COPY
+1670        >CTBL DATE
+1680        >CTBL DELETE
+1690        >CTBL EDIT
+1700        >CTBL FAST
+1710        >CTBL FIND
+1720        >CTBL FP
+1730        >CTBL HELP
+1740        >CTBL HIDE
+1750        >CTBL HIMEM
+1760        >CTBL INCREMENT
+1770        >CTBL LIST
+1780        >CTBL LOMEM
+1790        >CTBL MANUAL
+1800        >CTBL MEMORY
+1810        >CTBL MERGE
+1820        >CTBL MGO
+1830        >CTBL MNTR
+1840        >CTBL NEW
+1850        >CTBL PRT
+1860        >CTBL RENUMBER
+1870        >CTBL REPLACE
+1880        >CTBL RESTORE
+1890        >CTBL RST
+1900        >CTBL SLOW
+1910        >CTBL SYMBOLS
+1920        >CTBL TEXT
+1930        >CTBL TIME
+1940        >CTBL USR
+1950        >CTBL VAL
+1960        >CTBL VERSION
+1970        .HS 00       END OF TABLE
+1980 *--------------------------------
+1990 SCT.1  INY
+2000        INY
+2010        INY
+2020 SEARCH.CHAR.TABLES
+2030        LDA CHAR.TABLES,Y
+2040        BEQ .1       ...NOT IN TABLE
+2050        CMP CURRENT.CHAR
+2060        BNE SCT.1
+2070 .1     LDA CHAR.TABLES+2,Y
+2080        PHA
+2090        LDA CHAR.TABLES+1,Y
+2100        PHA
+2110        RTS
+2120 *--------------------------------

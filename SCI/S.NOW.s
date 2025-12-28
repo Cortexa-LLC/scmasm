@@ -1,0 +1,14 @@
+
+1000 T
+1010        JSR $B10D    BLANK.WBUF
+1020        JSR $BF00
+1030        .DA #$82,0000
+1040        LDX #3
+1050 .1     LDA $BF90,X
+1060        STA $0259,X
+1070        DEX
+1080        BPL .1
+1090        INX          X=0
+1100        LDY #15
+1110        JSR $B02F    FORMAT.DATE.AND.TIME
+1120        JMP $AE75    PRINT.CATALOG.LINE

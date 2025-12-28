@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.txbobsc.com)",
+      "Bash(curl:*)",
+      "Bash(chmod:*)",
+      "Bash(python3:*)",
+      "Bash(vasm6502_oldstyle:*)",
+      "Bash(make:*)"
+    ]
+  }
+}

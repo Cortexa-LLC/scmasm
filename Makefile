@@ -1,9 +1,12 @@
-# Makefile for S-C Macro Assembler 3.0
+# Makefile for S-C Macro Assembler 3.1
 # Uses vasm with SCASM syntax
 
 # Assembler
 VASM = vasm6502_scasm
 VASMFLAGS = -Fbin
+
+# Include ProDOS disk image creation targets
+include prodos.mk
 
 # Output directory
 BUILD_DIR = build
@@ -115,20 +118,36 @@ $(SCI_BIN): $(SCI_SOURCES) | $(BUILD_DIR)
 	@echo "Building ProDOS interface..."
 	$(VASM) $(VASMFLAGS) -o $@ SCI/SC.s
 
+# Build bootable ProDOS disk with SCASM
+.PHONY: disk
+disk: all prodos-disk
+	@echo "Creating bootable SCASM disk..."
+	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_SYS) -a 0x2000 -n SCASM.SYSTEM < $(SCASM_BIN)
+	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6600 -n SCASM.65816 < $(SCASM_65816_BIN)
+	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6000 -n B.IO.TWO.E < $(IO_TWO_E)
+	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6100 -n B.IO.STB80 < $(IO_STB80)
+	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6200 -n B.IO.VIDEX < $(IO_VIDEX)
+	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6400 -n B.IO.ULTRA < $(IO_ULTRA)
+	@echo ""
+	@echo "=== Disk Image Ready: $(PRODOS_IMAGE) ==="
+	$(AC) list -d $(PRODOS_IMAGE)
+
 # Clean build artifacts
 .PHONY: clean
-clean:
+clean: prodos-clean
 	rm -rf $(BUILD_DIR)
 
 # Display help
 .PHONY: help
 help:
-	@echo "S-C Macro Assembler 3.0 - Build System"
+	@echo "S-C Macro Assembler 3.1 - Build System"
 	@echo ""
 	@echo "Targets:"
 	@echo "  all         - Build all components (default)"
+	@echo "  disk        - Build all + create bootable ProDOS disk"
 	@echo "  clean       - Remove all build artifacts"
 	@echo "  help        - Display this help message"
+	@echo "  prodos-help - Display ProDOS disk targets"
 	@echo ""
 	@echo "Components:"
 	@echo "  SCASM       - Main assembler binary"
@@ -137,7 +156,14 @@ help:
 	@echo ""
 	@echo "Requirements:"
 	@echo "  - vasm assembler with SCASM syntax support"
-	@echo "  - Command: vasm6502_oldstyle"
+	@echo "  - Command: vasm6502_scasm"
+	@echo ""
+	@echo "ProDOS Disk Requirements (for 'make disk'):"
+	@echo "  - Java 21+ (for AppleCommander)"
+	@echo "  - AppleCommander acx.jar in /usr/local/share/java/"
+	@echo "  - Blank ProDOS disk in prodos/blank140k.dsk"
+	@echo "  - Run ./download-prodos.sh to download blank disk"
+	@echo "  - See README-PRODOS.md for details"
 
 # List all source files
 .PHONY: list-sources

@@ -1,10 +1,16 @@
-# S-C Macro Assembler 3.0 - Modern Build
+# S-C Macro Assembler 3.1 - Modernized Build System
 
-This project contains the source code for the S-C Macro Assembler 3.0, originally developed for the Apple II with ProDOS. The sources have been fetched from the [original website](https://www.txbobsc.com/scsc/scassembler/index.html) and adapted for building with modern assemblers.
+This project contains the source code for Bob Sander-Cederlof's S-C Macro Assembler, originally developed for the Apple II with ProDOS. The sources have been fetched from the [original website](https://www.txbobsc.com/scsc/scassembler/index.html) and modernized with a cross-platform build system using [vasm-ext](https://github.com/Cortexa-LLC/vasm-ext) for SCASM syntax support.
+
+**Key Features:**
+- **Cross-platform development**: Build on modern macOS, Linux, or Windows systems
+- **Target vintage hardware**: Produces authentic Apple II ProDOS executables
+- **Bootable disk images**: Automated ProDOS disk image creation with AppleCommander
+- **Modern tooling**: Uses vasm cross-assembler with SCASM syntax extensions
 
 ## Overview
 
-The S-C Macro Assembler 3.0 (unreleased version, November 1990) is a powerful macro assembler that was used to assemble itself and various Applied Engineering projects.
+The S-C Macro Assembler 3.1 is a powerful macro assembler that was used to assemble itself and various Applied Engineering projects. This version includes the CS/CZ directives and has been updated to build with contemporary development tools while maintaining full compatibility with the original Apple II assembly language.
 
 ## Project Structure
 
@@ -61,24 +67,24 @@ The S-C Macro Assembler 3.0 (unreleased version, November 1990) is a powerful ma
 
 ### Prerequisites
 
-You need `vasm` with SCASM syntax support:
-```bash
-# Check if vasm is available
-which vasm6502_oldstyle
-```
+**Required:**
+- **vasm with SCASM syntax**: Use [vasm-ext](https://github.com/Cortexa-LLC/vasm-ext) which adds SCASM syntax support to vasm
+  ```bash
+  # Check if vasm is available
+  which vasm6502_scasm
+  ```
 
-If not installed, you can build vasm from source:
-```bash
-# Clone vasm
-git clone https://github.com/laubzega/vasm.git
-cd vasm
-make CPU=6502 SYNTAX=oldstyle
-```
+**Optional (for bootable disk images):**
+- **Java 21+**: Required for AppleCommander
+- **AppleCommander acx.jar**: For ProDOS disk operations
+- **ProDOS disk template**: Downloaded automatically via `./download-prodos.sh`
+
+See [README-PRODOS.md](README-PRODOS.md) for complete ProDOS disk image setup instructions.
 
 ### Build Commands
 
 ```bash
-# Build everything
+# Build all components
 make
 
 # Build specific targets
@@ -86,14 +92,38 @@ make build/SCASM              # Main assembler
 make build/SCASM.65816        # 65816 extension
 make build/B.IO.TWO.E         # Apple //e driver
 
+# Create bootable ProDOS disk image
+./download-prodos.sh          # One-time setup: download ProDOS template
+make disk                     # Build and create SCASM.po disk image
+
 # Clean build artifacts
 make clean
 
 # Show help
 make help
+make prodos-help              # Show ProDOS disk targets
 
 # List all source files
 make list-sources
+```
+
+### Output Files
+
+The build produces authentic Apple II binaries that can run on:
+- **Real Apple II hardware** with ProDOS
+- **Emulators**: AppleWin, MAME, GSplus, OpenEmulator, etc.
+- **Disk image**: `build/SCASM.po` - Bootable 140KB ProDOS disk
+
+**Generated files:**
+```
+build/
+├── SCASM          # Main assembler (ProDOS SYS file, loads at $2000)
+├── SCASM.65816    # 65816 extension (loads at $6600)
+├── B.IO.TWO.E     # Apple //e 80-column driver
+├── B.IO.STB80     # STB-80 driver
+├── B.IO.VIDEX     # Videx Videoterm driver
+├── B.IO.ULTRA     # Videx Ultraterm driver
+└── SCASM.po       # Bootable ProDOS disk image (if 'make disk' run)
 ```
 
 ## Memory Map
@@ -172,10 +202,17 @@ This will fetch all 60 source files from https://www.txbobsc.com/scsc/scassemble
 
 ## License
 
-This is unreleased source code from 1990. The original authors are the S-C Software Corporation. This repository is for historical preservation and educational purposes.
+This is source code from 1990-1991. The original authors are the S-C Software Corporation. This repository is for historical preservation and educational purposes.
 
 ## Credits
 
-- Original S-C Macro Assembler: S-C Software Corporation
-- Source hosting: Bob Sander-Cederlof (txbobsc.com)
-- Modern build system: 2025
+- **Original S-C Macro Assembler**: Bob Sander-Cederlof & S-C Software Corporation
+- **Source hosting**: Bob Sander-Cederlof ([txbobsc.com](https://www.txbobsc.com/scsc/scassembler/index.html))
+- **Modern build system**: Cortexa LLC (2025)
+- **SCASM syntax support**: [vasm-ext](https://github.com/Cortexa-LLC/vasm-ext) - vasm with SCASM syntax extensions
+
+## Related Projects
+
+- **[vasm-ext](https://github.com/Cortexa-LLC/vasm-ext)** - vasm cross-assembler with SCASM syntax support
+- **[AppleCommander](https://github.com/AppleCommander/AppleCommander)** - ProDOS disk image utilities
+- **[ProDOS 8](https://prodos8.com)** - Modern ProDOS distribution

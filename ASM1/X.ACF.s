@@ -1,11 +1,11 @@
 
 1000  .LIF
-1010        .TI 76,S-C MACRO ASSEMBLER (ProDOS) 3.0...........November 14, 1990.....
+1010        .TI 76,S-C MACRO ASSEMBLER (ProDOS) 3.1...........December 28, 2025.....
 1020 *SAVE X.ACF
 1030        .list xoff,moff
 1040 *--------------------------------
-1050 VERSION.HI .EQ 3    VERSION 3.0
-1060 VERSION.LO .EQ 0
+1050 VERSION.HI .EQ 3    VERSION 3.1
+1060 VERSION.LO .EQ 1    CS,CZ directives (already present in 3.0)
 1070 *--------------------------------
 1080 AUXMEM     .EQ 1    ...USE AUXMEM FOR SYMBOL TABLE
 1090 *--------------------------------

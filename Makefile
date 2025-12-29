@@ -1,19 +1,44 @@
 # Makefile for S-C Macro Assembler 3.1
 # Uses vasm with SCASM syntax
 
-# Assembler
-VASM = vasm6502_scasm
+# Path to vasm-ext source tree (for make utilities, includes)
+VASM_EXT = ../vasm-ext
+
+# Assembler binary (defaults to /usr/local/bin, override for development)
+VASM_BIN ?= /usr/local/bin
+VASM = $(VASM_BIN)/vasm6502_scasm
 VASMFLAGS = -Fbin
 
-# Include ProDOS disk image creation targets
-include prodos.mk
+# Listing files for debugging
+SCMASM_LST = $(BUILD_DIR)/SCMASM.lst
+SCI_LST = $(BUILD_DIR)/B.SCI.lst
+SCMASM_65816_LST = $(BUILD_DIR)/SCMASM.65816.lst
 
-# Output directory
+# Override ProDOS disk image name to SCMASM.po
+PRODOS_IMAGE = build/SCMASM.po
+
+# Include ProDOS disk image creation targets
+include $(VASM_EXT)/make/prodos.mk
+
+# Output directory (must be defined before memory map targets)
 BUILD_DIR = build
 
+# Memory map configuration
+MEMORY_MAP_PY = $(VASM_EXT)/make/memory-map.py
+MEMORY_MAP_CONFIG = memory-map.json
+MEMORY_MAP = $(BUILD_DIR)/MEMORY.MAP
+
+# Memory map generation using Python script
+.PHONY: memory-map
+memory-map: $(MEMORY_MAP)
+
+$(MEMORY_MAP): $(MEMORY_MAP_CONFIG) $(SCMASM_BIN) $(SCI_BIN) $(IO_TWO_E) $(SCMASM_65816_BIN) | $(BUILD_DIR)
+	@python3 $(MEMORY_MAP_PY) -c $(MEMORY_MAP_CONFIG) -o $(MEMORY_MAP)
+	@cat $(MEMORY_MAP)
+
 # Main targets
-SCASM_BIN = $(BUILD_DIR)/SCASM
-SCASM_65816_BIN = $(BUILD_DIR)/SCASM.65816
+SCMASM_BIN = $(BUILD_DIR)/SCMASM
+SCMASM_65816_BIN = $(BUILD_DIR)/SCMASM.65816
 SCI_BIN = $(BUILD_DIR)/B.SCI
 
 # All IO driver binaries
@@ -80,21 +105,43 @@ SCI_SOURCES = \
 
 # Default target
 .PHONY: all
-all: $(BUILD_DIR) $(SCASM_BIN) $(SCASM_65816_BIN) $(IO_TWO_E) $(IO_STB80) $(IO_VIDEX) $(IO_ULTRA)
+all: $(BUILD_DIR) $(SCMASM_BIN) $(SCMASM_65816_BIN) $(IO_TWO_E) $(IO_STB80) $(IO_VIDEX) $(IO_ULTRA)
 
 # Create build directory
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Main assembler build
-$(SCASM_BIN): ASM1/X.ACF.s $(ASM_SOURCES) | $(BUILD_DIR)
+# Main assembler build with embedded drivers
+# File layout (when loaded at $2000) - must match SC.LOADER.s MOVE commands:
+#   $2000-$21FF: Loader (512 bytes)
+#   $2200-$4AFF: Assembler ($2900=10496 bytes, moved to $8000)
+#   $4B00-$5FFF: SCI ($1500=5376 bytes, moved to $AA00)
+#   $6000-$60FF: //e 80-col driver (DRIVER.ADDRS index 0)
+#   $6600-$71FF: 65816 code ($C00=3072 bytes, moved to $D400 language card)
+# Note: Other drivers (STB, Videx, Ultra) can be added at $6100, $6200, $6400
+$(SCMASM_BIN): ASM1/X.ACF.s $(ASM_SOURCES) $(SCI_BIN) $(IO_TWO_E) $(SCMASM_65816_BIN) | $(BUILD_DIR)
 	@echo "Building main S-C Macro Assembler..."
-	$(VASM) $(VASMFLAGS) -o $@ ASM1/X.ACF.s
+	$(VASM) $(VASMFLAGS) -L $(SCMASM_LST) -o $@.tmp ASM1/X.ACF.s
+	@echo "Padding assembler for SCI at \$$4B00 (offset 11008)..."
+	@truncate -s 11008 $@.tmp
+	@echo "Combining with ProDOS Interface..."
+	@cat $@.tmp $(SCI_BIN) > $@
+	@rm -f $@.tmp
+	@# Pad to $6000 offset for //e driver ($4000 from $2000 = 16384 bytes)
+	@truncate -s 16384 $@
+	@# Append //e 80-column driver at $6000
+	@cat $(IO_TWO_E) >> $@
+	@# Pad to $6600 offset for 65816 code ($4600 from $2000 = 17920 bytes)
+	@truncate -s 17920 $@
+	@# Append 65816 code at $6600
+	@cat $(SCMASM_65816_BIN) >> $@
+	@echo "Created SCMASM.SYSTEM file ($$(stat -f%z $@) bytes)"
+	@$(MAKE) --no-print-directory memory-map
 
 # 65816 extension build
-$(SCASM_65816_BIN): ASM65816/X.ACF.s $(ASM65816_SOURCES) | $(BUILD_DIR)
+$(SCMASM_65816_BIN): ASM65816/X.ACF.s $(ASM65816_SOURCES) | $(BUILD_DIR)
 	@echo "Building 65816 extension..."
-	cd ASM65816 && $(VASM) $(VASMFLAGS) -o ../$@ X.ACF.s
+	cd ASM65816 && $(VASM) $(VASMFLAGS) -L ../$(SCMASM_65816_LST) -o ../$@ X.ACF.s
 
 # IO Driver builds (individual files, not ACF controlled)
 $(IO_TWO_E): ASM1/IO.TWO.E.s | $(BUILD_DIR)
@@ -113,17 +160,17 @@ $(IO_ULTRA): ASM1/IO.ULTRA.s | $(BUILD_DIR)
 	@echo "Building Videx Ultraterm driver..."
 	$(VASM) $(VASMFLAGS) -o $@ $<
 
-# ProDOS interface (if needed separately)
+# ProDOS interface (required for SCMASM.SYSTEM)
 $(SCI_BIN): $(SCI_SOURCES) | $(BUILD_DIR)
 	@echo "Building ProDOS interface..."
-	$(VASM) $(VASMFLAGS) -o $@ SCI/SC.s
+	cd SCI && $(VASM) $(VASMFLAGS) -L ../$(SCI_LST) -o ../$@ SC.s
 
-# Build bootable ProDOS disk with SCASM
+# Build bootable ProDOS disk with SCMASM
 .PHONY: disk
 disk: all prodos-disk
-	@echo "Creating bootable SCASM disk..."
-	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_SYS) -a 0x2000 -n SCASM.SYSTEM < $(SCASM_BIN)
-	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6600 -n SCASM.65816 < $(SCASM_65816_BIN)
+	@echo "Creating bootable SCMASM disk..."
+	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_SYS) -a 0x2000 -n SCMASM.SYSTEM < $(SCMASM_BIN)
+	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6600 -n SCMASM.65816 < $(SCMASM_65816_BIN)
 	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6000 -n B.IO.TWO.E < $(IO_TWO_E)
 	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6100 -n B.IO.STB80 < $(IO_STB80)
 	$(AC) import -d $(PRODOS_IMAGE) --raw --stdin -t $(FTYPE_BIN) -a 0x6200 -n B.IO.VIDEX < $(IO_VIDEX)
@@ -145,14 +192,15 @@ help:
 	@echo "Targets:"
 	@echo "  all         - Build all components (default)"
 	@echo "  disk        - Build all + create bootable ProDOS disk"
+	@echo "  memory-map  - Generate/display memory map and symbols"
 	@echo "  clean       - Remove all build artifacts"
 	@echo "  help        - Display this help message"
 	@echo "  prodos-help - Display ProDOS disk targets"
 	@echo ""
 	@echo "Components:"
-	@echo "  SCASM       - Main assembler binary"
-	@echo "  SCASM.65816 - 65816 CPU extension"
-	@echo "  B.IO.*      - Display driver binaries"
+	@echo "  SCMASM       - Main assembler binary"
+	@echo "  SCMASM.65816 - 65816 CPU extension"
+	@echo "  B.IO.*       - Display driver binaries"
 	@echo ""
 	@echo "Requirements:"
 	@echo "  - vasm assembler with SCASM syntax support"
@@ -162,7 +210,7 @@ help:
 	@echo "  - Java 21+ (for AppleCommander)"
 	@echo "  - AppleCommander acx.jar in /usr/local/share/java/"
 	@echo "  - Blank ProDOS disk in prodos/blank140k.dsk"
-	@echo "  - Run ./download-prodos.sh to download blank disk"
+	@echo "  - Run ./scripts/download-prodos.sh to download blank disk"
 	@echo "  - See README-PRODOS.md for details"
 
 # List all source files

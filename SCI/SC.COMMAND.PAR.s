@@ -72,7 +72,7 @@
 1700        LDA VAL.LB
 1710        CMP #$08
 1720        BCC TEST.IF.MORE.PARMS
-1730 ERR.RANGE
+1730 SCI.ERR.RANGE
 1740        LDA #$02
 1750        SEC
 1760 RTS4   RTS
@@ -110,13 +110,13 @@
 2080 *--------------------------------
 2090 NO.MORE.PARMS
 2100        LDA VAL.S    CHECK RANGE OF S AND D
-2110        BEQ ERR.RANGE
+2110        BEQ SCI.ERR.RANGE
 2120        CMP #$08
-2130        BCS ERR.RANGE
+2130        BCS SCI.ERR.RANGE
 2140        LDA VAL.D
-2150        BEQ ERR.RANGE
+2150        BEQ SCI.ERR.RANGE
 2160        CMP #$03
-2170        BCS ERR.RANGE
+2170        BCS SCI.ERR.RANGE
 2180 *---CHECK IF DEFERRED COMMAND----
 2190        LDA PBITS    (only OPEN and WRITE are deferred)
 2200        AND #$21
@@ -268,7 +268,13 @@
 3660 .2     INY          next byte in command table
 3670        JSR GET.NEXT.NONBLANK
 3680        BEQ .4       ...end of WBUF contents
-3690        EOR COMMAND.TABLE,Y
+3685 *---Convert lowercase to uppercase---
+3686        CMP #'a'
+3687        BCC .20
+3688        CMP #'z'+1
+3689        BCS .20
+3690        EOR #$20     Convert lowercase to uppercase
+3695 .20    EOR COMMAND.TABLE,Y
 3700        BEQ .2       ...same so far
 3710        ASL          Might be last char
 3720        BNE .4       ...No, try next command
@@ -297,7 +303,7 @@
 3950        LDA #$FF
 3960        STA COMMAND.NUMBER
 3970        SEC
-3980        JMP USER.CMD
+3980        JMP SCI.USER.CMD
 3990 *--------------------------------
 4000 SYNERR1 JMP ERR.SYNTAX
 4010 *--------------------------------
@@ -402,7 +408,7 @@
 5000 *--------------------------------
 5010 GO.ERR.SYNTAX.1 JMP ERR.SYNTAX
 5020 *--------------------------------
-5030 GO.ERR.RANGE.1  JMP ERR.RANGE
+5030 GO.ERR.RANGE.1  JMP SCI.ERR.RANGE
 5040 *--------------------------------
 5050 CONVERT.FILE.TYPE
 5060        STA ACCUM+2       1ST LETTER

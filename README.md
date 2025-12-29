@@ -77,7 +77,7 @@ The S-C Macro Assembler 3.1 is a powerful macro assembler that was used to assem
 **Optional (for bootable disk images):**
 - **Java 21+**: Required for AppleCommander
 - **AppleCommander acx.jar**: For ProDOS disk operations
-- **ProDOS disk template**: Downloaded automatically via `./download-prodos.sh`
+- **ProDOS disk template**: Downloaded automatically via `./scripts/download-prodos.sh`
 
 See [README-PRODOS.md](README-PRODOS.md) for complete ProDOS disk image setup instructions.
 
@@ -88,13 +88,13 @@ See [README-PRODOS.md](README-PRODOS.md) for complete ProDOS disk image setup in
 make
 
 # Build specific targets
-make build/SCASM              # Main assembler
-make build/SCASM.65816        # 65816 extension
+make build/SCMASM             # Main assembler
+make build/SCMASM.65816       # 65816 extension
 make build/B.IO.TWO.E         # Apple //e driver
 
 # Create bootable ProDOS disk image
-./download-prodos.sh          # One-time setup: download ProDOS template
-make disk                     # Build and create SCASM.po disk image
+./scripts/download-prodos.sh          # One-time setup: download ProDOS template
+make disk                     # Build and create SCMASM.po disk image
 
 # Clean build artifacts
 make clean
@@ -112,18 +112,18 @@ make list-sources
 The build produces authentic Apple II binaries that can run on:
 - **Real Apple II hardware** with ProDOS
 - **Emulators**: AppleWin, MAME, GSplus, OpenEmulator, etc.
-- **Disk image**: `build/SCASM.po` - Bootable 140KB ProDOS disk
+- **Disk image**: `build/SCMASM.po` - Bootable 140KB ProDOS disk
 
 **Generated files:**
 ```
 build/
-├── SCASM          # Main assembler (ProDOS SYS file, loads at $2000)
-├── SCASM.65816    # 65816 extension (loads at $6600)
+├── SCMASM         # Main assembler (ProDOS SYS file, loads at $2000)
+├── SCMASM.65816   # 65816 extension (loads at $6600)
 ├── B.IO.TWO.E     # Apple //e 80-column driver
 ├── B.IO.STB80     # STB-80 driver
 ├── B.IO.VIDEX     # Videx Videoterm driver
 ├── B.IO.ULTRA     # Videx Ultraterm driver
-└── SCASM.po       # Bootable ProDOS disk image (if 'make disk' run)
+└── SCMASM.po      # Bootable ProDOS disk image (if 'make disk' run)
 ```
 
 ## Memory Map
@@ -151,7 +151,7 @@ All source files use the `.s` extension for compatibility with modern toolchains
 The original Apple II build process used:
 1. Assembly via control files (*.ACF)
 2. BLOAD binary outputs into specific memory locations
-3. BSAVE as SCASM.SYSTEM for ProDOS execution
+3. BSAVE as SCMASM.SYSTEM for ProDOS execution
 
 This modern build uses vasm to directly produce binaries that match the original memory layout.
 
@@ -195,7 +195,7 @@ Modify these values in ASM65816/X.ACF.s before building to customize which CPU v
 
 To re-download all source files from the website:
 ```bash
-python3 fetch_sources.py
+python3 scripts/fetch_sources.py
 ```
 
 This will fetch all 60 source files from https://www.txbobsc.com/scsc/scassembler/

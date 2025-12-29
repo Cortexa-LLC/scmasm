@@ -1,0 +1,3 @@
+mkdir -p build
+Creating ProDOS disk image: build/SCASM.po
+cp prodos/blank140k.po build/SCASM.po

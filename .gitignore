@@ -1,5 +1,7 @@
 # Build artifacts
-build/*
+build/
+*.o
+*.lst
 
 # Backup files
 *.bak
@@ -12,4 +14,13 @@ build/*
 # Python cache
 __pycache__/
 *.pyc
+
+# Downloaded external dependencies (not in repo)
 prodos/
+roms/
+
+# MAME runtime directories
+cfg/
+nvram/
+snap/
+plugins/

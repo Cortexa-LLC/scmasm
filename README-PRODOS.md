@@ -28,11 +28,11 @@ Create a minimal bootable ProDOS disk:
 
 **Option A: Use the helper script (recommended)**
 ```bash
-# Create minimal ProDOS disk (PRODOS only - for system files like SCASM)
-./download-prodos.sh
+# Create minimal ProDOS disk (PRODOS only - for system files like SCMASM)
+./scripts/download-prodos.sh
 
 # Or with BASIC.SYSTEM (for BASIC programs)
-./download-prodos.sh --with-basic
+./scripts/download-prodos.sh --with-basic
 ```
 
 The script will:
@@ -59,9 +59,9 @@ Once prerequisites are set up:
 make disk
 ```
 
-This creates `build/SCASM.po` containing:
-- SCASM.SYSTEM - Main assembler (at $2000)
-- SCASM.65816 - 65816 extension (at $6600)
+This creates `build/SCMASM.po` containing:
+- SCMASM.SYSTEM - Main assembler (at $2000)
+- SCMASM.65816 - 65816 extension (at $6600)
 - B.IO.TWO.E - Apple //e 80-column driver
 - B.IO.STB80 - STB-80 driver
 - B.IO.VIDEX - Videx Videoterm driver
@@ -103,7 +103,7 @@ make prodos-help
 - **AppleCommander acx.jar** - In `/usr/local/share/java/` (default)
 - **Blank ProDOS disk** - In `prodos/blank140k.po` (default)
   - Available from https://prodos8.com (free)
-  - Use `./download-prodos.sh` to download automatically
+  - Use `./scripts/download-prodos.sh` to download automatically
 
 ## Reusable Include
 

@@ -8,6 +8,7 @@
 1060 VERSION.LO .EQ 1    CS,CZ directives (already present in 3.0)
 1070 *--------------------------------
 1080 AUXMEM     .EQ 1    ...USE AUXMEM FOR SYMBOL TABLE
+1085 LOWERCASE  .EQ 0    ...LOWERCASE FILENAMES (A2osX feature, disabled)
 1090 *--------------------------------
 1100        .OR $2000
 1110        .TF ASM1/SCASM

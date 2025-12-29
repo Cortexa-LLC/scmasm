@@ -51,12 +51,12 @@
 1490 *---CHECK FOR PAUSE/ABORT--------
 1500 .5     JSR CHECK.KEY     SEE IF KEYPRESS
 1510        BMI .3            ...NO, CONTINUE CATALOG
-1520        BEQ .7            ... or , abort
-1530 *--- or , so abort------
+1520        BEQ .7            ...<CR> or <ESC>, abort
+1530 *---<CR> or <ESC>, so abort------
 1540 .6     JSR CHECK.KEY
 1550        BMI .6            WAIT FOR KEY
 1560        BNE .3            ...NOT CR OR ESC, CONTINUE
-1570 *--- or , abort---------
+1570 *---<CR> or <ESC>, abort---------
 1580 .7     LDX CAT.INDEX
 1590        LDA FILE.REFNUMS,X
 1600        JSR CLOSE.ONE.FILE
@@ -68,9 +68,9 @@
 1660        LDA $C000    SEE IF KEYSTROKE
 1670        BPL .1       ...NO
 1680        STA $C010    ...YES, CLEAR STROBE
-1690 .1     EOR #$8D     SET .EQ. IF 
+1690 .1     EOR #$8D     SET .EQ. IF <RET>
 1700        BEQ .2       ...YES
-1710        EOR #$8D^$9B       OR IF 
+1710        EOR #$8D^$9B       OR IF <ESC>
 1720 .2     RTS          .MI. IF NO KEY
 1730 *--------------------------------
 1740 *   FORMAT BLOCKS FREE/INUSE

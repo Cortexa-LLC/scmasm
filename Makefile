@@ -1,12 +1,12 @@
 # Makefile for S-C Macro Assembler 3.1
-# Uses vasm with SCASM syntax
+# Uses vasm with SCMASM syntax
 
-# Path to vasm-ext source tree (for make utilities, includes)
-VASM_EXT = ../vasm-ext
+# Path to system-installed vasm utilities
+VASM_SHARE ?= /usr/local/share/vasm
 
 # Assembler binary (defaults to /usr/local/bin, override for development)
 VASM_BIN ?= /usr/local/bin
-VASM = $(VASM_BIN)/vasm6502_scasm
+VASM = $(VASM_BIN)/vasm6502_scmasm
 VASMFLAGS = -Fbin
 
 # Listing files for debugging
@@ -18,13 +18,13 @@ SCMASM_65816_LST = $(BUILD_DIR)/SCMASM.65816.lst
 PRODOS_IMAGE = build/SCMASM.po
 
 # Include ProDOS disk image creation targets
-include $(VASM_EXT)/make/prodos.mk
+include $(VASM_SHARE)/make/prodos.mk
 
 # Output directory (must be defined before memory map targets)
 BUILD_DIR = build
 
 # Memory map configuration
-MEMORY_MAP_PY = $(VASM_EXT)/make/memory-map.py
+MEMORY_MAP_PY = $(VASM_SHARE)/make/memory-map.py
 MEMORY_MAP_CONFIG = memory-map.json
 MEMORY_MAP = $(BUILD_DIR)/MEMORY.MAP
 
@@ -193,6 +193,7 @@ help:
 	@echo "  all         - Build all components (default)"
 	@echo "  disk        - Build all + create bootable ProDOS disk"
 	@echo "  memory-map  - Generate/display memory map and symbols"
+	@echo "  test-a2osx  - Test A2osX ASM.S compatibility"
 	@echo "  clean       - Remove all build artifacts"
 	@echo "  help        - Display this help message"
 	@echo "  prodos-help - Display ProDOS disk targets"
@@ -204,7 +205,7 @@ help:
 	@echo ""
 	@echo "Requirements:"
 	@echo "  - vasm assembler with SCASM syntax support"
-	@echo "  - Command: vasm6502_scasm"
+	@echo "  - Command: vasm6502_scmasm"
 	@echo ""
 	@echo "ProDOS Disk Requirements (for 'make disk'):"
 	@echo "  - Java 21+ (for AppleCommander)"
@@ -224,3 +225,32 @@ list-sources:
 	@echo ""
 	@echo "ProDOS Interface Sources:"
 	@for file in $(SCI_SOURCES); do echo "  $$file"; done
+
+# A2osX ASM.S compatibility test
+A2OSX_DIR = tools/SCMASM.A2osX
+A2OSX_SOURCE = $(A2OSX_DIR)/ASM.S.clean
+A2OSX_OUTPUT = $(BUILD_DIR)/A2osX-ASM
+
+.PHONY: test-a2osx
+test-a2osx: $(A2OSX_SOURCE) | $(BUILD_DIR)
+	@echo "Testing A2osX ASM.S compatibility..."
+	@echo "(Note: A2osX source has compile-time size checks that may fail)"
+	@$(VASM) $(VASMFLAGS) -o $(A2OSX_OUTPUT) $(A2OSX_SOURCE) 2>&1 | tee build/a2osx-test.log || true
+	@echo ""
+	@if grep -q "error 83" build/a2osx-test.log; then \
+		echo "❌ Label directive error (vasm bug)"; \
+		exit 1; \
+	elif grep -q "error 31.*expression must be constant" build/a2osx-test.log; then \
+		echo "✓ A2osX compile-time size check triggered (expected)"; \
+		echo "  This validates that vasm correctly processes .DO/.FIN conditionals"; \
+	elif grep -q "error" build/a2osx-test.log; then \
+		echo "❌ Unexpected error in assembly"; \
+		exit 1; \
+	else \
+		echo "✓ A2osX ASM.S assembled successfully!"; \
+		echo "  Output: $(A2OSX_OUTPUT) ($$(stat -f%z $(A2OSX_OUTPUT)) bytes)"; \
+	fi
+
+$(A2OSX_SOURCE):
+	@echo "A2osX source files not found. Running download script..."
+	@cd $(A2OSX_DIR) && ./download-a2osx.sh

@@ -8,7 +8,7 @@ This is the S-C Macro Assembler 3.0 - a powerful macro assembler originally deve
 
 ## Build Commands
 
-All builds require `vasm6502_scasm` (vasm with SCASM syntax support). If not available, build from source: `git clone https://github.com/laubzega/vasm.git && cd vasm && make CPU=6502 SYNTAX=oldstyle`.
+All builds require `vasm6502_scmasm` (vasm with SCMASM syntax support). If not available, build from source: `git clone https://github.com/laubzega/vasm.git && cd vasm && make CPU=6502 SYNTAX=scmasm`.
 
 ```bash
 # Build all components (main assembler, 65816 extension, display drivers)

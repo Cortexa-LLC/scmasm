@@ -71,7 +71,7 @@ The S-C Macro Assembler 3.1 is a powerful macro assembler that was used to assem
 - **vasm with SCASM syntax**: Use [vasm-ext](https://github.com/Cortexa-LLC/vasm-ext) which adds SCASM syntax support to vasm
   ```bash
   # Check if vasm is available
-  which vasm6502_scasm
+  which vasm6502_scmasm
   ```
 
 **Optional (for bootable disk images):**

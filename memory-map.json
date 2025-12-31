@@ -1,0 +1,54 @@
+{
+  "title": "S-C Macro Assembler 3.1 Memory Map",
+  "load_address": "0x2000",
+  "components": [
+    {
+      "name": "Loader + Assembler Core",
+      "binary": "build/SCMASM.tmp",
+      "listing": "build/SCMASM.lst",
+      "run_address": "0x8000",
+      "pad_to": "0x4B00"
+    },
+    {
+      "name": "ProDOS Interface (SCI)",
+      "binary": "build/B.SCI",
+      "listing": "build/B.SCI.lst",
+      "run_address": "0xAA00",
+      "pad_to": "0x6000"
+    },
+    {
+      "name": "Apple //e 80-col Driver",
+      "binary": "build/B.IO.TWO.E",
+      "run_address": "0x6000",
+      "pad_to": "0x6600"
+    },
+    {
+      "name": "65816 CPU Extension",
+      "binary": "build/SCMASM.65816",
+      "listing": "build/SCMASM.65816.lst",
+      "run_address": "0xD400"
+    }
+  ],
+  "runtime_regions": [
+    {
+      "name": "Zero Page",
+      "start": "0x0000",
+      "end": "0x00FF"
+    },
+    {
+      "name": "System Stack",
+      "start": "0x0100",
+      "end": "0x01FF"
+    },
+    {
+      "name": "Text Page 1",
+      "start": "0x0400",
+      "end": "0x07FF"
+    },
+    {
+      "name": "HGR Page 1",
+      "start": "0x2000",
+      "end": "0x3FFF"
+    }
+  ]
+}

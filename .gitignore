@@ -15,9 +15,20 @@ build/
 __pycache__/
 *.pyc
 
+# Claude Code configuration (local settings)
+.claude/
+.clinerules/
+
 # Downloaded external dependencies (not in repo)
 prodos/
 roms/
+
+# A2osX test files (downloaded by script)
+tools/SCMASM.A2osX/ASM.S
+tools/SCMASM.A2osX/ASM.S.clean
+tools/SCMASM.A2osX/asm-build.log
+tools/SCMASM.A2osX/inc/
+tools/SCMASM.A2osX/usr/
 
 # MAME runtime directories
 cfg/
